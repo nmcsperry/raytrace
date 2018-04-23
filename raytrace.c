@@ -22,6 +22,11 @@ typedef struct Sphere {
     Vector3 pos;
 } Sphere;
 
+typedef struct Plane {
+    Vector3 pos;
+    Vector3 normal;
+} Plane;
+
 typedef struct Ray {
     Vector3 start;
     Vector3 dir;
@@ -38,17 +43,23 @@ typedef struct Light {
     Color color;
 } Light;
 
-// typedef enum Object_Type {
-//     OBJ_SPHERE, OBJ_PLANE
-// } Object_Type;
-// 
-// struct Object {
-//     Object_Type type;
-//     union {
-//         Sphere sphere;
-//         Plane plane;
-//     }
-// }
+typedef struct Material {
+    Color color;
+    bool mirror;
+} Material;
+
+typedef enum Object_Type {
+    OBJ_SPHERE, OBJ_PLANE
+} Object_Type;
+
+typedef struct Object {
+    Object_Type type;
+    union {
+        Sphere sphere;
+        Plane plane;
+    };
+    Material material;
+} Object;
 
 bool fequal (float a, float b) {
     float epsilon = 0.00001;
@@ -158,10 +169,42 @@ Vector3 sphere_normal (Sphere sphere, Vector3 point) {
     return vec3_normalize(vec3_sub(point, sphere.pos));
 }
 
+Vector3 plane_normal (Plane plane, Vector3 point) {
+    return vec3_normalize(plane.normal);
+}
+
+Vector3 object_normal (Object object, Vector3 point) {
+    Vector3 normal = {0};
+    switch (object.type) {
+        case OBJ_SPHERE:
+            normal = sphere_normal(object.sphere, point);
+            break;
+        case OBJ_PLANE:
+            normal = plane_normal(object.plane, point);
+            break;
+    }
+
+    return normal;
+}
+
 Vector3 parametric_line (float t, Ray ray) {
     Vector3 offset = vec3_mul(ray.dir, t);
     Vector3 point = vec3_add(ray.start, offset);
     return point;
+}
+
+bool intersect_plane (Ray ray, Plane plane, float *parametric_hit) {
+    float plane_offset = vec3_dot(plane.normal, plane.pos);
+
+    float x = (plane_offset - vec3_dot(plane.normal, ray.start))
+        / vec3_dot(plane.normal, ray.dir);
+
+    if (x > 0) {
+        if (parametric_hit != NULL) *parametric_hit = x;
+        return true;
+    }
+
+    return false;
 }
 
 bool intersect_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
@@ -202,24 +245,52 @@ bool intersect_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
     return false;
 }
 
-Sphere spheres[3];
+Object scene[4];
 Light lights[2];
 
+#define WHITE(x) (x).r = 1.0f; (x).g = 1.0f; (x).b = 1.0f
+
 void setup_scene () {
-    spheres[0].pos.x = 4.0f;
-    spheres[0].pos.z = 25.0f;
-    spheres[0].pos.y = 1.0f;
-    spheres[0].r = 3.0f;
+    scene[0].type = OBJ_SPHERE;
+    scene[0].sphere.pos.x = 4.0f;
+    scene[0].sphere.pos.z = 25.0f;
+    scene[0].sphere.pos.y = 1.0f;
+    scene[0].sphere.r = 4.0f;
+    scene[0].material.color.r = 1.0f;
+    scene[0].material.color.g = 0.3f;
+    scene[0].material.color.b = 0.3f;
+    scene[0].material.mirror = false;
 
-    spheres[1].pos.x = -4.0f;
-    spheres[1].pos.z = 25.0f;
-    spheres[1].pos.y = 1.0f;
-    spheres[1].r = 3.0f;
+    scene[2].type = OBJ_SPHERE;
+    scene[2].sphere.pos.x = 0.0f;
+    scene[2].sphere.pos.z = 25.0f;
+    scene[2].sphere.pos.y = 3.0f;
+    scene[2].sphere.r = 3.0f;
+    scene[2].material.color.r = 0.3f;
+    scene[2].material.color.g = 0.3f;
+    scene[2].material.color.b = 1.0f;
+    scene[2].material.mirror = false;
 
-    spheres[2].pos.x = 0.0f;
-    spheres[2].pos.z = 25.0f;
-    spheres[2].pos.y = 3.0f;
-    spheres[2].r = 3.0f;
+    scene[1].type = OBJ_SPHERE;
+    scene[1].sphere.pos.x = -4.0f;
+    scene[1].sphere.pos.z = 25.0f;
+    scene[1].sphere.pos.y = 1.0f;
+    scene[1].sphere.r = 2.0f;
+    scene[1].material.color.r = 0.3f;
+    scene[1].material.color.g = 1.0f;
+    scene[1].material.color.b = 0.3f;
+    scene[1].material.mirror = false;
+
+    scene[3].type = OBJ_PLANE;
+    scene[3].plane.pos.x = 0.0f;
+    scene[3].plane.pos.z = 90.0f;
+    scene[3].plane.pos.y = 3.0f;
+    scene[3].plane.normal.x = 0.0f;
+    scene[3].plane.normal.y = 0.0f;
+    scene[3].plane.normal.z = -1.0f;
+    scene[3].plane.normal = vec3_normalize(scene[3].plane.normal);
+    WHITE(scene[3].material.color);
+    scene[3].material.mirror = true;
 
     lights[0].color.r = 0.5f;
     lights[0].color.g = 1.0f;
@@ -229,9 +300,9 @@ void setup_scene () {
     lights[0].pos.y = -20;
     lights[0].pos.z = 25;
 
-    lights[1].color.r = 1.0f;
-    lights[1].color.g = 0.5f;
-    lights[1].color.b = 0.0f;
+    lights[1].color.r = 0.7f;
+    lights[1].color.g = 0.7f;
+    lights[1].color.b = 0.5f;
 
     lights[1].pos.x = 0;
     lights[1].pos.y = 0;
@@ -243,10 +314,21 @@ bool intersect_scene (Ray ray, float *hit, int *hit_object) {
     int closest_hit_object = -1;
     bool found_anything = false;
 
-    for (int i = 0; i < ARRAY_LEN(spheres); i++) {
+    for (int i = 0; i < ARRAY_LEN(scene); i++) {
         float this_hit;
+
+        bool intersect = false;
+
+        switch (scene[i].type) {
+            case OBJ_SPHERE:
+                intersect = intersect_sphere(ray, scene[i].sphere, &this_hit);
+                break;
+            case OBJ_PLANE:
+                intersect = intersect_plane(ray, scene[i].plane, &this_hit);
+                break;
+        }
         
-        if (intersect_sphere(ray, spheres[i], &this_hit)) {
+        if (intersect) {
             found_anything = true;
 
             if (this_hit < closest_hit) {
@@ -271,12 +353,23 @@ bool intersect_scene_with_one_exception (
     int closest_hit_object = -1;
     bool found_anything = false;
 
-    for (int i = 0; i < ARRAY_LEN(spheres); i++) {
+    for (int i = 0; i < ARRAY_LEN(scene); i++) {
         if (i == exception) continue;
 
         float this_hit;
+
+        bool intersect = false;
+
+        switch (scene[i].type) {
+            case OBJ_SPHERE:
+                intersect = intersect_sphere(ray, scene[i].sphere, &this_hit);
+                break;
+            case OBJ_PLANE:
+                intersect = intersect_plane(ray, scene[i].plane, &this_hit);
+                break;
+        }
         
-        if (intersect_sphere(ray, spheres[i], &this_hit)) {
+        if (intersect) {
             found_anything = true;
 
             if (this_hit < closest_hit) {
@@ -296,9 +389,10 @@ bool intersect_scene_with_one_exception (
     return found_anything;
 }
 
-Color color_from_light (Light light, Sphere sphere, Vector3 point) {
+Color color_from_light (Light light, Object object, Vector3 point) {
     Color result = {0};
-    Vector3 normal = sphere_normal(sphere, point);
+    
+    Vector3 normal = object_normal(object, point);
 
     Vector3 direction_to_light = vec3_normalize(vec3_sub(
         point, light.pos));
@@ -314,13 +408,18 @@ Color color_from_light (Light light, Sphere sphere, Vector3 point) {
     return result;
 }
 
+Color color_mul (Color a, Color b) {
+    Color product = {a.r * b.r, a.g * b.g, a.b * b.b};
+    return product;
+}
+
 Color color_from_all_lights (int object_index, Vector3 point) {
     Color result = {0};
 
-    Sphere sphere = spheres[object_index];
+    Object object = scene[object_index];
 
     for (int i = 0; i < ARRAY_LEN(lights); i++) {
-        Color this_color = color_from_light(lights[i], sphere, point);
+        Color this_color = color_from_light(lights[i], object, point);
 
         Ray shadow_ray = {0};
         shadow_ray.start = point;
@@ -331,6 +430,40 @@ Color color_from_all_lights (int object_index, Vector3 point) {
         
         if (!did_we_hit)
             result = color_add(result, this_color);
+    }
+    
+    return color_mul(result, object.material.color);
+}
+
+Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
+    Color result = {0};
+
+    if (depth > 20) {
+        WHITE(result);
+        return result;
+    }
+
+    float hit;
+    int hit_object;
+    
+    if (intersect_scene_with_one_exception(sight, &hit, &hit_object, exception)) {
+        Vector3 hit_point = parametric_line(hit, sight);
+
+        if (scene[hit_object].material.mirror) {
+            Vector3 normal = object_normal(scene[hit_object], hit_point);
+            Vector3 dir = vec3_normalize(sight.dir);
+        
+            Vector3 reflection_dir = vec3_sub(dir, vec3_mul(normal, 2.0f * vec3_dot(dir, normal)));
+
+            Ray reflection = {0};
+            reflection.dir = vec3_normalize(normal);
+            reflection.start = vec3_add(hit_point, reflection.dir);
+
+            result = get_ray_color_with_one_exception(reflection, depth + 1, hit_object);
+
+        } else {
+            result = color_from_all_lights(hit_object, hit_point); 
+        }
     }
 
     return result;
@@ -349,24 +482,13 @@ void raytrace (Win32_Offscreen_Buffer *buffer) {
             sight.dir.y = (-(float)y + buffer->height/2) / buffer->height;
             sight.dir.z = 1;
 
-            float hit;
-            int hit_object;
-            
-            if (intersect_scene(sight, &hit, &hit_object)) {
-                Vector3 hit_point = parametric_line(hit, sight);
+            Color surface_color = get_ray_color_with_one_exception(sight, 0, -1);
 
-                Color surface_color = color_from_all_lights(
-                    hit_object, hit_point
-                ); 
+            u8 green = (u8)(surface_color.g * 255);
+            u8 blue  = (u8)(surface_color.b * 255);
+            u8 red   = (u8)(surface_color.r * 255);
 
-                u8 green = (u8)(surface_color.g * 255);
-                u8 blue  = (u8)(surface_color.b * 255);
-                u8 red   = (u8)(surface_color.r * 255);
-
-                *pixel++ = ((red << 16) | (green << 8) | blue);
-            } else {
-                *pixel++ =  0; // background
-            }
+            *pixel++ = ((red << 16) | (green << 8) | blue);
         }
         row += buffer->pitch;
     }
@@ -382,8 +504,8 @@ int CALLBACK WinMain (
 
     WNDCLASSA window_class = {0};
 
-    int window_width = 1000;
-    int window_height = 700;
+    int window_width = 1280;
+    int window_height = 720;
 
     win32_resize_dib_section(&global_backbuffer, window_width, window_height);
 

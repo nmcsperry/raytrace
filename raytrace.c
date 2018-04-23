@@ -245,21 +245,21 @@ bool intersect_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
     return false;
 }
 
-Object scene[4];
+Object scene[5];
 Light lights[2];
 
 #define WHITE(x) (x).r = 1.0f; (x).g = 1.0f; (x).b = 1.0f
 
 void setup_scene () {
-    scene[0].type = OBJ_SPHERE;
-    scene[0].sphere.pos.x = 4.0f;
-    scene[0].sphere.pos.z = 25.0f;
-    scene[0].sphere.pos.y = 1.0f;
-    scene[0].sphere.r = 4.0f;
-    scene[0].material.color.r = 1.0f;
-    scene[0].material.color.g = 0.3f;
-    scene[0].material.color.b = 0.3f;
-    scene[0].material.mirror = false;
+    scene[1].type = OBJ_SPHERE;
+    scene[1].sphere.pos.x = 4.0f;
+    scene[1].sphere.pos.z = 23.0f;
+    scene[1].sphere.pos.y = 1.0f;
+    scene[1].sphere.r = 2.0f;
+    scene[1].material.color.r = 1.0f;
+    scene[1].material.color.g = 0.3f;
+    scene[1].material.color.b = 0.3f;
+    scene[1].material.mirror = false;
 
     scene[2].type = OBJ_SPHERE;
     scene[2].sphere.pos.x = 0.0f;
@@ -269,36 +269,47 @@ void setup_scene () {
     scene[2].material.color.r = 0.3f;
     scene[2].material.color.g = 0.3f;
     scene[2].material.color.b = 1.0f;
-    scene[2].material.mirror = false;
+    scene[2].material.mirror = true;
 
-    scene[1].type = OBJ_SPHERE;
-    scene[1].sphere.pos.x = -4.0f;
-    scene[1].sphere.pos.z = 25.0f;
-    scene[1].sphere.pos.y = 1.0f;
-    scene[1].sphere.r = 2.0f;
-    scene[1].material.color.r = 0.3f;
-    scene[1].material.color.g = 1.0f;
-    scene[1].material.color.b = 0.3f;
-    scene[1].material.mirror = false;
+    scene[0].type = OBJ_SPHERE;
+    scene[0].sphere.pos.x = -4.0f;
+    scene[0].sphere.pos.z = 25.0f;
+    scene[0].sphere.pos.y = 1.0f;
+    scene[0].sphere.r = 2.0f;
+    scene[0].material.color.r = 0.3f;
+    scene[0].material.color.g = 1.0f;
+    scene[0].material.color.b = 0.3f;
+    scene[0].material.mirror = false;
 
     scene[3].type = OBJ_PLANE;
     scene[3].plane.pos.x = 0.0f;
-    scene[3].plane.pos.z = 90.0f;
+    scene[3].plane.pos.z = 27.0f;
     scene[3].plane.pos.y = 3.0f;
-    scene[3].plane.normal.x = 0.0f;
-    scene[3].plane.normal.y = 0.0f;
+    scene[3].plane.normal.x = -0.5f;
+    scene[3].plane.normal.y = 1.0f;
     scene[3].plane.normal.z = -1.0f;
     scene[3].plane.normal = vec3_normalize(scene[3].plane.normal);
     WHITE(scene[3].material.color);
-    scene[3].material.mirror = true;
+    scene[3].material.mirror = false;
+
+    // scene[4].type = OBJ_PLANE;
+    // scene[4].plane.pos.x = -10.0f;
+    // scene[4].plane.pos.z = 27.0f;
+    // scene[4].plane.pos.y = 3.0f;
+    // scene[4].plane.normal.x = 1.5f;
+    // scene[4].plane.normal.y = 1.0f;
+    // scene[4].plane.normal.z = -0.5f;
+    // scene[4].plane.normal = vec3_normalize(scene[4].plane.normal);
+    // WHITE(scene[4].material.color);
+    // scene[4].material.mirror = true;
 
     lights[0].color.r = 0.5f;
     lights[0].color.g = 1.0f;
     lights[0].color.b = 1.0f;
 
-    lights[0].pos.x = 20;
-    lights[0].pos.y = -20;
-    lights[0].pos.z = 25;
+    lights[0].pos.x = 20.0f;
+    lights[0].pos.y = 10.0f;
+    lights[0].pos.z = 15.0f;
 
     lights[1].color.r = 0.7f;
     lights[1].color.g = 0.7f;
@@ -456,8 +467,8 @@ Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
             Vector3 reflection_dir = vec3_sub(dir, vec3_mul(normal, 2.0f * vec3_dot(dir, normal)));
 
             Ray reflection = {0};
-            reflection.dir = vec3_normalize(normal);
-            reflection.start = vec3_add(hit_point, reflection.dir);
+            reflection.dir = vec3_normalize(reflection_dir);
+            reflection.start = hit_point; //, reflection.dir);
 
             result = get_ray_color_with_one_exception(reflection, depth + 1, hit_object);
 

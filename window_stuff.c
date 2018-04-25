@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef uint8_t  u8;
 typedef uint16_t u16;
@@ -13,10 +14,6 @@ typedef int64_t s64;
 
 typedef float r32;
 typedef double r64;
-
-typedef s32 bool;
-#define true (bool)1;
-#define false (bool)0;
 
 typedef struct Win32_Offscreen_Buffer {
     BITMAPINFO info;

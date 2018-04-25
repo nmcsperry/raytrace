@@ -251,46 +251,54 @@ Light lights[2];
 #define WHITE(x) (x).r = 1.0f; (x).g = 1.0f; (x).b = 1.0f
 
 void setup_scene () {
-    scene[1].type = OBJ_SPHERE;
-    scene[1].sphere.pos.x = 4.0f;
-    scene[1].sphere.pos.z = 23.0f;
-    scene[1].sphere.pos.y = 1.0f;
-    scene[1].sphere.r = 2.0f;
-    scene[1].material.color.r = 1.0f;
-    scene[1].material.color.g = 0.3f;
-    scene[1].material.color.b = 0.3f;
-    scene[1].material.mirror = false;
+    scene[1] = (Object) {
+        .type = OBJ_SPHERE,
+        .sphere = (Sphere) {
+            .pos = (Vector3) {4.0f, 1.0f, 23.0f},
+            .r = 2.0f
+        },
+        .material = (Material) {
+            .color = (Color) {1.0f, 0.3f, 0.3f},
+            .mirror = false
+        }
+    };
 
-    scene[2].type = OBJ_SPHERE;
-    scene[2].sphere.pos.x = 0.0f;
-    scene[2].sphere.pos.z = 25.0f;
-    scene[2].sphere.pos.y = 3.0f;
-    scene[2].sphere.r = 3.0f;
-    scene[2].material.color.r = 0.3f;
-    scene[2].material.color.g = 0.3f;
-    scene[2].material.color.b = 1.0f;
-    scene[2].material.mirror = true;
+    scene[2] = (Object) {
+        .type = OBJ_SPHERE,
+        .sphere = (Sphere) {
+            .pos = (Vector3) {0.0f, 3.0f, 25.0f},
+            .r = 3.0f
+        },
+        .material = (Material) {
+            .color = (Color) {1.0f, 1.0f, 1.0f},
+            .mirror = true
+        }
+    };
 
-    scene[0].type = OBJ_SPHERE;
-    scene[0].sphere.pos.x = -4.0f;
-    scene[0].sphere.pos.z = 25.0f;
-    scene[0].sphere.pos.y = 1.0f;
-    scene[0].sphere.r = 2.0f;
-    scene[0].material.color.r = 0.3f;
-    scene[0].material.color.g = 1.0f;
-    scene[0].material.color.b = 0.3f;
-    scene[0].material.mirror = false;
+    scene[0] = (Object) {
+        .type = OBJ_SPHERE,
+        .sphere = (Sphere) {
+            .pos = (Vector3) {-4.0f, 1.0f, 25.0f},
+            .r = 2.0f
+        },
+        .material = (Material) {
+            .color = (Color) {0.3f, 1.0f, 0.3f},
+            .mirror = false
+        }
+    };
 
-    scene[3].type = OBJ_PLANE;
-    scene[3].plane.pos.x = 0.0f;
-    scene[3].plane.pos.z = 27.0f;
-    scene[3].plane.pos.y = 3.0f;
-    scene[3].plane.normal.x = -0.5f;
-    scene[3].plane.normal.y = 1.0f;
-    scene[3].plane.normal.z = -1.0f;
+    scene[3] = (Object) {
+        .type = OBJ_PLANE,
+        .plane = (Plane) {
+            .pos = (Vector3) {0.0f, 3.0f, 27.0f},
+            .normal = (Vector3) {-0.5f, 1.0f, -1.0f}
+        },
+        .material = (Material) {
+            .color = (Color) {1.0f, 1.0f, 1.0f},
+            .mirror = false
+        }
+    };
     scene[3].plane.normal = vec3_normalize(scene[3].plane.normal);
-    WHITE(scene[3].material.color);
-    scene[3].material.mirror = false;
 
     // scene[4].type = OBJ_PLANE;
     // scene[4].plane.pos.x = -10.0f;

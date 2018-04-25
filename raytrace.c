@@ -265,7 +265,7 @@ bool intersect_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
 }
 
 Object scene[5];
-Light lights[2];
+Light lights[3];
 
 void setup_scene () {
     scene[1] = (Object) {
@@ -301,11 +301,11 @@ void setup_scene () {
     // scene[4] = (Object) {
     //     .type = OBJ_SPHERE,
 
-    //     .sphere.pos = (Vector3) {1.0f, 0.0f, 21.0f},
+    //     .sphere.pos = (Vector3) {0.0f, 16.0f, 21.0f},
     //     .sphere.r = 4.0f,
 
-    //     .sphere.material.color = (Color) {0.3f, 1.0f, 0.3f},
-    //     .sphere.material.mirror = true
+    //     .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
+    //     .sphere.material.mirror = false
     // };
 
     scene[3] = (Object) {
@@ -333,6 +333,11 @@ void setup_scene () {
         .color = (Color) {0.7f, 0.7f, 0.5f},
         .pos = (Vector3) {0.0f, 0.0f, 5.0f}
     };
+
+    // lights[2] = (Light) {
+    //     .color = (Color) {0.7f, 0.7f, 0.5f},
+    //     .pos = (Vector3) {0.0f, 20.0f, 21.0f},
+    // };
 }
 
 Material checkerboard_choose_material (
@@ -576,7 +581,6 @@ int CALLBACK WinMain (
     int window_width = 1280;
     int window_height = 720;
 
-    win32_resize_dib_section(&global_backbuffer, window_width, window_height);
 
     /*r*/window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
     window_class.lpfnWndProc = win32_main_window_callback;
@@ -602,6 +606,11 @@ int CALLBACK WinMain (
 
     HDC device_context = GetDC(window);
     // this assumes we got something
+
+    Win32_Window_Dimension starting_dim = win32_get_window_dimension(window);
+    win32_resize_dib_section(
+        &global_backbuffer, starting_dim.width, starting_dim.height
+    );
     
     raytrace(&global_backbuffer);
 

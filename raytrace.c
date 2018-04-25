@@ -17,39 +17,47 @@ typedef struct Vector3 {
     float z;
 } Vector3;
 
-typedef struct Sphere {
-    float r;
-    Vector3 pos;
-} Sphere;
-
-typedef struct Plane {
-    Vector3 pos;
-    Vector3 normal;
-} Plane;
-
-typedef struct Ray {
-    Vector3 start;
-    Vector3 dir;
-} Ray;
-
 typedef struct Color {
     float r;
     float g;
     float b;
 } Color;
 
-typedef struct Light {
-    Vector3 pos;
-    Color color;
-} Light;
-
 typedef struct Material {
     Color color;
     bool mirror;
 } Material;
 
+typedef struct Sphere {
+    float r;
+    Vector3 pos;
+    Material material;
+} Sphere;
+
+typedef struct Plane {
+    Vector3 pos;
+    Vector3 normal;
+    Material material;
+} Plane;
+
+typedef struct Checkerboard {
+    Plane plane;
+    Material material_2;
+    float scale;
+} Checkerboard;
+
+typedef struct Ray {
+    Vector3 start;
+    Vector3 dir;
+} Ray;
+
+typedef struct Light {
+    Vector3 pos;
+    Color color;
+} Light;
+
 typedef enum Object_Type {
-    OBJ_SPHERE, OBJ_PLANE
+    OBJ_SPHERE, OBJ_PLANE, OBJ_CHECKERBOARD
 } Object_Type;
 
 typedef struct Object {
@@ -57,8 +65,8 @@ typedef struct Object {
     union {
         Sphere sphere;
         Plane plane;
+        Checkerboard checkerboard;
     };
-    Material material;
 } Object;
 
 bool fequal (float a, float b) {
@@ -165,6 +173,14 @@ Vector3 vec3_normalize (Vector3 a) {
     return vec3_div(a, norm);
 }
 
+Vector3 vec3_cross (Vector3 a, Vector3 b) {
+    return (Vector3) {
+        a.y*b.z - a.z*b.y,
+        a.z*b.x - a.x*b.z,
+        a.x*b.y - a.y*b.x,
+    };
+}
+
 Vector3 sphere_normal (Sphere sphere, Vector3 point) {
     return vec3_normalize(vec3_sub(point, sphere.pos));
 }
@@ -181,6 +197,9 @@ Vector3 object_normal (Object object, Vector3 point) {
             break;
         case OBJ_PLANE:
             normal = plane_normal(object.plane, point);
+            break;
+        case OBJ_CHECKERBOARD:
+            normal = plane_normal(object.checkerboard.plane, point);
             break;
     }
 
@@ -248,84 +267,108 @@ bool intersect_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
 Object scene[5];
 Light lights[2];
 
-#define WHITE(x) (x).r = 1.0f; (x).g = 1.0f; (x).b = 1.0f
-
 void setup_scene () {
     scene[1] = (Object) {
         .type = OBJ_SPHERE,
-        .sphere = (Sphere) {
-            .pos = (Vector3) {4.0f, 1.0f, 23.0f},
-            .r = 2.0f
-        },
-        .material = (Material) {
-            .color = (Color) {1.0f, 0.3f, 0.3f},
-            .mirror = false
-        }
+
+        .sphere.pos = (Vector3) {8.0f, 1.5f, 22.5f},
+        .sphere.r = 3.0f,
+
+        .sphere.material.color = (Color) {1.0f, 0.3f, 0.3f},
+        .sphere.material.mirror = false
     };
 
     scene[2] = (Object) {
         .type = OBJ_SPHERE,
-        .sphere = (Sphere) {
-            .pos = (Vector3) {0.0f, 3.0f, 25.0f},
-            .r = 3.0f
-        },
-        .material = (Material) {
-            .color = (Color) {1.0f, 1.0f, 1.0f},
-            .mirror = true
-        }
+
+        .sphere.pos = (Vector3) {0.0f, 3.0f, 25.0f},
+        .sphere.r = 6.0f,
+
+        .sphere.material.color = (Color) {1.0f, 1.0f, 1.0f},
+        .sphere.material.mirror = true
     };
 
     scene[0] = (Object) {
         .type = OBJ_SPHERE,
-        .sphere = (Sphere) {
-            .pos = (Vector3) {-4.0f, 1.0f, 25.0f},
-            .r = 2.0f
-        },
-        .material = (Material) {
-            .color = (Color) {0.3f, 1.0f, 0.3f},
-            .mirror = false
-        }
+
+        .sphere.pos = (Vector3) {-9.0f, 1.2f, 25.0f},
+        .sphere.r = 4.0f,
+
+        .sphere.material.color = (Color) {0.3f, 1.0f, 0.3f},
+        .sphere.material.mirror = false
     };
 
+    // scene[4] = (Object) {
+    //     .type = OBJ_SPHERE,
+
+    //     .sphere.pos = (Vector3) {1.0f, 0.0f, 21.0f},
+    //     .sphere.r = 4.0f,
+
+    //     .sphere.material.color = (Color) {0.3f, 1.0f, 0.3f},
+    //     .sphere.material.mirror = true
+    // };
+
     scene[3] = (Object) {
-        .type = OBJ_PLANE,
-        .plane = (Plane) {
-            .pos = (Vector3) {0.0f, 3.0f, 27.0f},
-            .normal = (Vector3) {-0.5f, 1.0f, -1.0f}
-        },
-        .material = (Material) {
-            .color = (Color) {1.0f, 1.0f, 1.0f},
-            .mirror = false
-        }
+        .type = OBJ_CHECKERBOARD,
+
+        .checkerboard.plane.pos = (Vector3) {0.0f, 3.0f, 27.0f},
+        .checkerboard.plane.normal = (Vector3) {-0.5f, 1.0f, -1.0f},
+
+        .checkerboard.plane.material.color = (Color) {1.0f, 1.0f, 1.0f},
+        .checkerboard.plane.material.mirror = false,
+
+        .checkerboard.material_2.color = (Color) {0.3f, 0.3f, 0.3f},
+        .checkerboard.material_2.mirror = false,
+
+        .checkerboard.scale = 3.0f
     };
     scene[3].plane.normal = vec3_normalize(scene[3].plane.normal);
 
-    // scene[4].type = OBJ_PLANE;
-    // scene[4].plane.pos.x = -10.0f;
-    // scene[4].plane.pos.z = 27.0f;
-    // scene[4].plane.pos.y = 3.0f;
-    // scene[4].plane.normal.x = 1.5f;
-    // scene[4].plane.normal.y = 1.0f;
-    // scene[4].plane.normal.z = -0.5f;
-    // scene[4].plane.normal = vec3_normalize(scene[4].plane.normal);
-    // WHITE(scene[4].material.color);
-    // scene[4].material.mirror = true;
+    lights[0] = (Light) {
+        .color = (Color) {0.5f, 1.0f, 1.0f},
+        .pos = (Vector3) {20.0f, 10.0f, 15.0f}
+    };
 
-    lights[0].color.r = 0.5f;
-    lights[0].color.g = 1.0f;
-    lights[0].color.b = 1.0f;
+    lights[1] = (Light) {
+        .color = (Color) {0.7f, 0.7f, 0.5f},
+        .pos = (Vector3) {0.0f, 0.0f, 5.0f}
+    };
+}
 
-    lights[0].pos.x = 20.0f;
-    lights[0].pos.y = 10.0f;
-    lights[0].pos.z = 15.0f;
+Material checkerboard_choose_material (
+    Checkerboard checkerboard, Vector3 point
+) {
+    Vector3 v0 = (Vector3) {1.0f, 0.0f, 0.0f};   
+    Vector3 u = vec3_normalize(vec3_cross(checkerboard.plane.normal, v0));
+    Vector3 v = vec3_normalize(vec3_cross(checkerboard.plane.normal, u));
 
-    lights[1].color.r = 0.7f;
-    lights[1].color.g = 0.7f;
-    lights[1].color.b = 0.5f;
+    Vector3 ref = vec3_sub(point, checkerboard.plane.pos);
 
-    lights[1].pos.x = 0;
-    lights[1].pos.y = 0;
-    lights[1].pos.z = 5;
+    int ui = (int) ceil(vec3_dot(u, ref) / checkerboard.scale);
+    int vi = (int) ceil(vec3_dot(v, ref) / checkerboard.scale);
+
+    if ((unsigned)ui % 2 != (unsigned)vi % 2)
+        return checkerboard.plane.material;
+    else
+        return checkerboard.material_2;
+}
+
+Material object_material (Object object, Vector3 point) {
+    Material material;
+    switch (object.type) {
+        case OBJ_SPHERE:
+            material = object.sphere.material;
+            break;
+        case OBJ_PLANE:
+            material = object.plane.material;
+            break;
+        case OBJ_CHECKERBOARD:
+            material = checkerboard_choose_material(
+                object.checkerboard, point);
+            break;
+    }
+
+    return material;
 }
 
 bool intersect_scene (Ray ray, float *hit, int *hit_object) {
@@ -344,6 +387,10 @@ bool intersect_scene (Ray ray, float *hit, int *hit_object) {
                 break;
             case OBJ_PLANE:
                 intersect = intersect_plane(ray, scene[i].plane, &this_hit);
+                break;
+            case OBJ_CHECKERBOARD:
+                intersect = intersect_plane(ray,
+                    scene[i].checkerboard.plane, &this_hit);
                 break;
         }
         
@@ -385,6 +432,9 @@ bool intersect_scene_with_one_exception (
                 break;
             case OBJ_PLANE:
                 intersect = intersect_plane(ray, scene[i].plane, &this_hit);
+                break;
+            case OBJ_CHECKERBOARD:
+                intersect = intersect_plane(ray, scene[i].checkerboard.plane, &this_hit);
                 break;
         }
         
@@ -451,14 +501,14 @@ Color color_from_all_lights (int object_index, Vector3 point) {
             result = color_add(result, this_color);
     }
     
-    return color_mul(result, object.material.color);
+    return color_mul(result, object_material(object, point).color);
 }
 
 Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
     Color result = {0};
 
     if (depth > 20) {
-        WHITE(result);
+        result = (Color) {1.0f, 1.0f, 1.0f};
         return result;
     }
 
@@ -468,7 +518,7 @@ Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
     if (intersect_scene_with_one_exception(sight, &hit, &hit_object, exception)) {
         Vector3 hit_point = parametric_line(hit, sight);
 
-        if (scene[hit_object].material.mirror) {
+        if (object_material(scene[hit_object], hit_point).mirror) {
             Vector3 normal = object_normal(scene[hit_object], hit_point);
             Vector3 dir = vec3_normalize(sight.dir);
         

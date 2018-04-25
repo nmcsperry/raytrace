@@ -25,7 +25,7 @@ typedef struct Color {
 
 typedef struct Material {
     Color color;
-    bool mirror;
+    float mirror;
 } Material;
 
 typedef struct Sphere {
@@ -264,7 +264,7 @@ bool intersect_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
     return false;
 }
 
-Object scene[5];
+Object scene[4];
 Light lights[3];
 
 void setup_scene () {
@@ -275,7 +275,7 @@ void setup_scene () {
         .sphere.r = 3.0f,
 
         .sphere.material.color = (Color) {1.0f, 0.3f, 0.3f},
-        .sphere.material.mirror = false
+        .sphere.material.mirror = 0.0f
     };
 
     scene[2] = (Object) {
@@ -284,8 +284,8 @@ void setup_scene () {
         .sphere.pos = (Vector3) {0.0f, 3.0f, 25.0f},
         .sphere.r = 6.0f,
 
-        .sphere.material.color = (Color) {1.0f, 1.0f, 1.0f},
-        .sphere.material.mirror = true
+        .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
+        .sphere.material.mirror = 0.8f
     };
 
     scene[0] = (Object) {
@@ -295,7 +295,7 @@ void setup_scene () {
         .sphere.r = 4.0f,
 
         .sphere.material.color = (Color) {0.3f, 1.0f, 0.3f},
-        .sphere.material.mirror = false
+        .sphere.material.mirror = 0.0f
     };
 
     // scene[4] = (Object) {
@@ -315,10 +315,10 @@ void setup_scene () {
         .checkerboard.plane.normal = (Vector3) {-0.5f, 1.0f, -1.0f},
 
         .checkerboard.plane.material.color = (Color) {1.0f, 1.0f, 1.0f},
-        .checkerboard.plane.material.mirror = false,
+        .checkerboard.plane.material.mirror = 0.1f,
 
         .checkerboard.material_2.color = (Color) {0.3f, 0.3f, 0.3f},
-        .checkerboard.material_2.mirror = false,
+        .checkerboard.material_2.mirror = 0.1f,
 
         .checkerboard.scale = 3.0f
     };
@@ -326,7 +326,7 @@ void setup_scene () {
 
     lights[0] = (Light) {
         .color = (Color) {0.5f, 1.0f, 1.0f},
-        .pos = (Vector3) {20.0f, 10.0f, 15.0f}
+        .pos = (Vector3) {20.0f, 15.0f, 15.0f}
     };
 
     lights[1] = (Light) {
@@ -509,6 +509,14 @@ Color color_from_all_lights (int object_index, Vector3 point) {
     return color_mul(result, object_material(object, point).color);
 }
 
+Color color_lerp (Color a, Color b, float lerp) {
+    return (Color) {
+        (1.0f - lerp) * a.r + lerp * b.r,
+        (1.0f - lerp) * a.g + lerp * b.g,
+        (1.0f - lerp) * a.b + lerp * b.b,
+    };
+}
+
 Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
     Color result = {0};
 
@@ -523,7 +531,9 @@ Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
     if (intersect_scene_with_one_exception(sight, &hit, &hit_object, exception)) {
         Vector3 hit_point = parametric_line(hit, sight);
 
-        if (object_material(scene[hit_object], hit_point).mirror) {
+        float mirror = object_material(scene[hit_object], hit_point).mirror;
+
+        if (mirror > 0.0f) {
             Vector3 normal = object_normal(scene[hit_object], hit_point);
             Vector3 dir = vec3_normalize(sight.dir);
         
@@ -531,10 +541,13 @@ Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
 
             Ray reflection = {0};
             reflection.dir = vec3_normalize(reflection_dir);
-            reflection.start = hit_point; //, reflection.dir);
+            reflection.start = hit_point;
 
-            result = get_ray_color_with_one_exception(reflection, depth + 1, hit_object);
+            Color mirror_color =
+                get_ray_color_with_one_exception(reflection, depth + 1, hit_object);
+            Color light_color = color_from_all_lights(hit_object, hit_point); 
 
+            result = color_lerp(light_color, mirror_color, mirror);
         } else {
             result = color_from_all_lights(hit_object, hit_point); 
         }
@@ -622,7 +635,7 @@ int CALLBACK WinMain (
         while(PeekMessage(&message, 0, 0, 0, PM_REMOVE))
         {
             if (message.message == WM_QUIT)
-                global_running = false;
+                global_running = 0.0f;
 
             TranslateMessage(&message);
             DispatchMessageA(&message);

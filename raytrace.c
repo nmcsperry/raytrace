@@ -353,26 +353,14 @@ void setup_scene () {
     };
 
     scene[2] = (Object) {
-        .type = OBJ_TORUS,
+        .type = OBJ_SPHERE,
 
-        .torus.pos = (Vector3) {0.0f, 3.0f, 25.0f},
-        .torus.outer_r = 6.0f,
-        .torus.inner_r = 3.0f,
+        .sphere.pos = (Vector3) {0.0f, 3.0f, 25.0f},
+        .sphere.r = 6.0f,
 
-        .torus.material.color = (Color) {0.3f, 0.3f, 1.0f},
-        .torus.material.mirror = 0.8f
+        .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
+        .sphere.material.mirror = 0.8f
     };
-
-    // scene[0] = (Object) {
-    //     .type = OBJ_TORUS,
-
-    //     .torus.pos = (Vector3) {-9.0f, 1.2f, 25.0f},
-    //     .torus.inner_r = 6.0f,
-    //     .torus.outer_r = 8.0f,
-
-    //     .torus.material.color = (Color) {0.3f, 1.0f, 0.3f},
-    //     .torus.material.mirror = 0.0f
-    // };
 
     scene[0] = (Object) {
         .type = OBJ_SPHERE,
@@ -406,7 +394,7 @@ void setup_scene () {
         .checkerboard.material_2.color = (Color) {0.3f, 0.3f, 0.3f},
         .checkerboard.material_2.mirror = 0.1f,
 
-        .checkerboard.scale = 3.0f
+        .checkerboard.scale = 5.0f
     };
     scene[3].plane.normal = vec3_normalize(scene[3].plane.normal);
 
@@ -632,6 +620,7 @@ Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
             Color light_color = color_from_all_lights(hit_object, hit_point); 
 
             result = color_lerp(light_color, mirror_color, mirror);
+            // result = color_add(light_color, mirror_color);
         } else {
             result = color_from_all_lights(hit_object, hit_point); 
         }

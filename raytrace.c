@@ -46,6 +46,13 @@ typedef struct Checkerboard {
     float scale;
 } Checkerboard;
 
+typedef struct Torus {
+    float inner_r;
+    float outer_r;
+    Vector3 pos;
+    Material material;
+} Torus;
+
 typedef struct Ray {
     Vector3 pos;
     Vector3 dir;
@@ -57,7 +64,7 @@ typedef struct Light {
 } Light;
 
 typedef enum Object_Type {
-    OBJ_SPHERE, OBJ_PLANE, OBJ_CHECKERBOARD
+    OBJ_SPHERE, OBJ_PLANE, OBJ_CHECKERBOARD, OBJ_TORUS
 } Object_Type;
 
 typedef struct Object {
@@ -66,11 +73,12 @@ typedef struct Object {
         Sphere sphere;
         Plane plane;
         Checkerboard checkerboard;
+        Torus torus;
     };
 } Object;
 
 bool fequal (float a, float b) {
-    float epsilon = 0.00001;
+    float epsilon = 0.0005;
     if (a + epsilon > b && a - epsilon < b) return true;
     return false;
 }
@@ -185,6 +193,26 @@ Vector3 sphere_normal (Sphere sphere, Vector3 point) {
     return vec3_normalize(vec3_sub(point, sphere.pos));
 }
 
+Vector3 torus_normal (Torus torus, Vector3 point) {
+    for (int i = 0; i < 360; i++) {
+        float rad = (float)i / 180 * 3.14159f;
+        float middle_r = (torus.inner_r + torus.outer_r) / 2;
+        Vector3 offset = {cos(rad) * middle_r, sin(rad) * middle_r, 0.0f};
+
+        Sphere new_sphere = (Sphere) {
+            .pos = vec3_add(torus.pos, offset),
+            .r = (torus.outer_r - torus.inner_r) / 2,
+        };
+        
+        Vector3 diff = vec3_sub(new_sphere.pos, point);
+        if (fequal(vec3_dot(diff, diff), new_sphere.r * new_sphere.r)) {
+            return sphere_normal(new_sphere, point);
+        }
+    }
+
+    return (Vector3) {0, 0, 0};
+}
+
 Vector3 plane_normal (Plane plane, Vector3 point) {
     return vec3_normalize(plane.normal);
 }
@@ -200,6 +228,9 @@ Vector3 object_normal (Object object, Vector3 point) {
             break;
         case OBJ_CHECKERBOARD:
             normal = plane_normal(object.checkerboard.plane, point);
+            break;
+        case OBJ_TORUS:
+            normal = torus_normal(object.torus, point);
             break;
     }
 
@@ -264,6 +295,49 @@ bool intersect_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
     return false;
 }
 
+bool intersect_torus (
+    Ray ray, Torus torus, float *parametric_hit, int *sphere_hit
+) {
+    Sphere test_sphere = (Sphere) {
+        .pos = torus.pos,
+        .r = torus.outer_r,
+        .material = torus.material
+    }; 
+
+    if (!intersect_sphere(ray, test_sphere, NULL))
+        return false;
+
+    float first_hit = INFINITY;
+    int hit_index = -1;
+
+    for (int i = 0; i < 360; i++) {
+        float this_hit;
+        float rad = (float)i / 180 * 3.14159f;
+        float middle_r = (torus.inner_r + torus.outer_r) / 2;
+        Vector3 offset = {cos(rad) * middle_r, sin(rad) * middle_r, 0.0f};
+
+        Sphere new_sphere = (Sphere) {
+            .pos = vec3_add(torus.pos, offset),
+            .r = (torus.outer_r - torus.inner_r) / 2,
+            .material = torus.material
+        };
+
+        if (intersect_sphere(ray, new_sphere, &this_hit))
+            if (this_hit < first_hit) {
+                first_hit = this_hit;
+                hit_index = i;
+            }
+    }
+
+    if (first_hit != INFINITY) {
+        if (parametric_hit != NULL) *parametric_hit = first_hit;
+        if (sphere_hit != NULL) *sphere_hit = hit_index;
+        return true;
+    }
+
+    return false;
+}
+
 Object scene[4];
 Light lights[3];
 
@@ -279,14 +353,26 @@ void setup_scene () {
     };
 
     scene[2] = (Object) {
-        .type = OBJ_SPHERE,
+        .type = OBJ_TORUS,
 
-        .sphere.pos = (Vector3) {0.0f, 3.0f, 25.0f},
-        .sphere.r = 6.0f,
+        .torus.pos = (Vector3) {0.0f, 3.0f, 25.0f},
+        .torus.outer_r = 6.0f,
+        .torus.inner_r = 3.0f,
 
-        .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
-        .sphere.material.mirror = 0.8f
+        .torus.material.color = (Color) {0.3f, 0.3f, 1.0f},
+        .torus.material.mirror = 0.8f
     };
+
+    // scene[0] = (Object) {
+    //     .type = OBJ_TORUS,
+
+    //     .torus.pos = (Vector3) {-9.0f, 1.2f, 25.0f},
+    //     .torus.inner_r = 6.0f,
+    //     .torus.outer_r = 8.0f,
+
+    //     .torus.material.color = (Color) {0.3f, 1.0f, 0.3f},
+    //     .torus.material.mirror = 0.0f
+    // };
 
     scene[0] = (Object) {
         .type = OBJ_SPHERE,
@@ -298,15 +384,15 @@ void setup_scene () {
         .sphere.material.mirror = 0.0f
     };
 
-    // scene[4] = (Object) {
-    //     .type = OBJ_SPHERE,
+    scene[4] = (Object) {
+        .type = OBJ_SPHERE,
 
-    //     .sphere.pos = (Vector3) {0.0f, 16.0f, 21.0f},
-    //     .sphere.r = 4.0f,
+        .sphere.pos = (Vector3) {0.0f, 16.0f, 21.0f},
+        .sphere.r = 4.0f,
 
-    //     .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
-    //     .sphere.material.mirror = false
-    // };
+        .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
+        .sphere.material.mirror = false
+    };
 
     scene[3] = (Object) {
         .type = OBJ_CHECKERBOARD,
@@ -371,9 +457,32 @@ Material object_material (Object object, Vector3 point) {
             material = checkerboard_choose_material(
                 object.checkerboard, point);
             break;
+        case OBJ_TORUS:
+            material = object.torus.material;
+            break;
     }
 
     return material;
+}
+
+bool intersect_object (Ray ray, Object object, float *hit) {
+    bool intersect = false;
+    switch (object.type) {
+        case OBJ_SPHERE:
+            intersect = intersect_sphere(ray, object.sphere, hit);
+            break;
+        case OBJ_PLANE:
+            intersect = intersect_plane(ray, object.plane, hit);
+            break;
+        case OBJ_CHECKERBOARD:
+            intersect = intersect_plane(ray, object.checkerboard.plane, hit);
+            break;
+        case OBJ_TORUS:
+            intersect = intersect_torus(ray, object.torus, hit, NULL);
+            break;
+    }
+    
+    return intersect;
 }
 
 bool intersect_scene (Ray ray, float *hit, int *hit_object) {
@@ -384,20 +493,7 @@ bool intersect_scene (Ray ray, float *hit, int *hit_object) {
     for (int i = 0; i < ARRAY_LEN(scene); i++) {
         float this_hit;
 
-        bool intersect = false;
-
-        switch (scene[i].type) {
-            case OBJ_SPHERE:
-                intersect = intersect_sphere(ray, scene[i].sphere, &this_hit);
-                break;
-            case OBJ_PLANE:
-                intersect = intersect_plane(ray, scene[i].plane, &this_hit);
-                break;
-            case OBJ_CHECKERBOARD:
-                intersect = intersect_plane(ray,
-                    scene[i].checkerboard.plane, &this_hit);
-                break;
-        }
+        bool intersect = intersect_object(ray, scene[i], &this_hit);
         
         if (intersect) {
             found_anything = true;
@@ -429,19 +525,7 @@ bool intersect_scene_with_one_exception (
 
         float this_hit;
 
-        bool intersect = false;
-
-        switch (scene[i].type) {
-            case OBJ_SPHERE:
-                intersect = intersect_sphere(ray, scene[i].sphere, &this_hit);
-                break;
-            case OBJ_PLANE:
-                intersect = intersect_plane(ray, scene[i].plane, &this_hit);
-                break;
-            case OBJ_CHECKERBOARD:
-                intersect = intersect_plane(ray, scene[i].checkerboard.plane, &this_hit);
-                break;
-        }
+        bool intersect = intersect_object(ray, scene[i], &this_hit);
         
         if (intersect) {
             found_anything = true;

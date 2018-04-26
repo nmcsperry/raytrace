@@ -1,6 +1,76 @@
 #include "window_stuff.c"
 #include "raytrace_math.c"
 
+// setup scene
+
+void setup_scene () {
+    scene[1] = (Object) {
+        .type = OBJ_SPHERE,
+
+        .sphere.pos = (Vector3) {8.0f, 1.5f, 22.5f},
+        .sphere.r = 3.0f,
+
+        .sphere.material.color = (Color) {1.0f, 0.3f, 0.3f},
+        .sphere.material.mirror = 0.0f
+    };
+
+    scene[2] = (Object) {
+        .type = OBJ_SPHERE,
+
+        .sphere.pos = (Vector3) {0.0f, 3.0f, 25.0f},
+        .sphere.r = 6.0f,
+
+        .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
+        .sphere.material.mirror = 0.8f
+    };
+
+    scene[0] = (Object) {
+        .type = OBJ_SPHERE,
+
+        .sphere.pos = (Vector3) {-9.0f, 1.2f, 25.0f},
+        .sphere.r = 4.0f,
+
+        .sphere.material.color = (Color) {0.3f, 1.0f, 0.3f},
+        .sphere.material.mirror = 0.0f
+    };
+
+    scene[4] = (Object) {
+        .type = OBJ_SPHERE,
+
+        .sphere.pos = (Vector3) {0.0f, 16.0f, 21.0f},
+        .sphere.r = 4.0f,
+
+        .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
+        .sphere.material.mirror = false
+    };
+
+    scene[3] = (Object) {
+        .type = OBJ_CHECKERBOARD,
+
+        .checkerboard.plane.pos = (Vector3) {0.0f, 3.0f, 27.0f},
+        .checkerboard.plane.normal = (Vector3) {-0.5f, 1.0f, -1.0f},
+
+        .checkerboard.plane.material.color = (Color) {1.0f, 1.0f, 1.0f},
+        .checkerboard.plane.material.mirror = 0.1f,
+
+        .checkerboard.material_2.color = (Color) {0.3f, 0.3f, 0.3f},
+        .checkerboard.material_2.mirror = 0.1f,
+
+        .checkerboard.scale = 5.0f
+    };
+    scene[3].plane.normal = vec3_normalize(scene[3].plane.normal);
+
+    lights[0] = (Light) {
+        .color = (Color) {0.5f, 1.0f, 1.0f},
+        .pos = (Vector3) {20.0f, 15.0f, 15.0f}
+    };
+
+    lights[1] = (Light) {
+        .color = (Color) {0.7f, 0.7f, 0.5f},
+        .pos = (Vector3) {0.0f, 0.0f, 5.0f}
+    };
+}
+
 void raytrace (Win32_Offscreen_Buffer *buffer) {
     u8 * row = (u8 *) buffer->memory;
 

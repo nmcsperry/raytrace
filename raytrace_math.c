@@ -9,7 +9,7 @@
 
 #define ARRAY_LEN(x) sizeof((x))/sizeof((x)[0])
 
-// most of the stuff
+// types
 
 typedef struct Vector3 {
     float x;
@@ -153,13 +153,11 @@ int quadform_only_positive (float a, float b, float c, float *answers) {
 // vectors
 
 Vector3 vec3_add (Vector3 a, Vector3 b) {
-    Vector3 sum = {a.x + b.x, a.y + b.y, a.z + b.z};
-    return sum;
+    return (Vector3) {a.x + b.x, a.y + b.y, a.z + b.z};
 }
 
 Vector3 vec3_sub (Vector3 a, Vector3 b) {
-    Vector3 diff = {a.x - b.x, a.y - b.y, a.z - b.z};
-    return diff;
+    return (Vector3) {a.x - b.x, a.y - b.y, a.z - b.z};
 }
 
 float vec3_dot (Vector3 a, Vector3 b) {
@@ -167,13 +165,11 @@ float vec3_dot (Vector3 a, Vector3 b) {
 }
 
 Vector3 vec3_div (Vector3 a, float b) {
-    Vector3 vec = {a.x / b, a.y / b, a.z / b};
-    return vec;
+    return (Vector3) {a.x / b, a.y / b, a.z / b};
 }
 
 Vector3 vec3_mul (Vector3 a, float b) {
-    Vector3 vec = {a.x * b, a.y * b, a.z * b};
-    return vec;
+    return (Vector3) {a.x * b, a.y * b, a.z * b};
 }
 
 Vector3 vec3_normalize (Vector3 a) {
@@ -383,17 +379,15 @@ Material object_material (Object object, Vector3 point) {
 // colors and matherials
 
 Color color_add (Color a, Color b) {
-    Color sum = {
+    return (Color) {
         fclamp(a.r + b.r, 1.0f, 0.0f),
         fclamp(a.g + b.g, 1.0f, 0.0f),
         fclamp(a.b + b.b, 1.0f, 0.0f)
     };
-    return sum;
 }
 
 Color color_mul (Color a, Color b) {
-    Color product = {a.r * b.r, a.g * b.g, a.b * b.b};
-    return product;
+    return (Color) {a.r * b.r, a.g * b.g, a.b * b.b};
 }
 
 Color color_lerp (Color a, Color b, float alpha) {
@@ -568,72 +562,3 @@ Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
     return result;
 }
 
-// setup scene
-
-void setup_scene () {
-    scene[1] = (Object) {
-        .type = OBJ_SPHERE,
-
-        .sphere.pos = (Vector3) {8.0f, 1.5f, 22.5f},
-        .sphere.r = 3.0f,
-
-        .sphere.material.color = (Color) {1.0f, 0.3f, 0.3f},
-        .sphere.material.mirror = 0.0f
-    };
-
-    scene[2] = (Object) {
-        .type = OBJ_SPHERE,
-
-        .sphere.pos = (Vector3) {0.0f, 3.0f, 25.0f},
-        .sphere.r = 6.0f,
-
-        .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
-        .sphere.material.mirror = 0.8f
-    };
-
-    scene[0] = (Object) {
-        .type = OBJ_SPHERE,
-
-        .sphere.pos = (Vector3) {-9.0f, 1.2f, 25.0f},
-        .sphere.r = 4.0f,
-
-        .sphere.material.color = (Color) {0.3f, 1.0f, 0.3f},
-        .sphere.material.mirror = 0.0f
-    };
-
-    scene[4] = (Object) {
-        .type = OBJ_SPHERE,
-
-        .sphere.pos = (Vector3) {0.0f, 16.0f, 21.0f},
-        .sphere.r = 4.0f,
-
-        .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
-        .sphere.material.mirror = false
-    };
-
-    scene[3] = (Object) {
-        .type = OBJ_CHECKERBOARD,
-
-        .checkerboard.plane.pos = (Vector3) {0.0f, 3.0f, 27.0f},
-        .checkerboard.plane.normal = (Vector3) {-0.5f, 1.0f, -1.0f},
-
-        .checkerboard.plane.material.color = (Color) {1.0f, 1.0f, 1.0f},
-        .checkerboard.plane.material.mirror = 0.1f,
-
-        .checkerboard.material_2.color = (Color) {0.3f, 0.3f, 0.3f},
-        .checkerboard.material_2.mirror = 0.1f,
-
-        .checkerboard.scale = 5.0f
-    };
-    scene[3].plane.normal = vec3_normalize(scene[3].plane.normal);
-
-    lights[0] = (Light) {
-        .color = (Color) {0.5f, 1.0f, 1.0f},
-        .pos = (Vector3) {20.0f, 15.0f, 15.0f}
-    };
-
-    lights[1] = (Light) {
-        .color = (Color) {0.7f, 0.7f, 0.5f},
-        .pos = (Vector3) {0.0f, 0.0f, 5.0f}
-    };
-}

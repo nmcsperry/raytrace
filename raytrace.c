@@ -47,7 +47,7 @@ typedef struct Checkerboard {
 } Checkerboard;
 
 typedef struct Ray {
-    Vector3 start;
+    Vector3 pos;
     Vector3 dir;
 } Ray;
 
@@ -208,14 +208,14 @@ Vector3 object_normal (Object object, Vector3 point) {
 
 Vector3 parametric_line (float t, Ray ray) {
     Vector3 offset = vec3_mul(ray.dir, t);
-    Vector3 point = vec3_add(ray.start, offset);
+    Vector3 point = vec3_add(ray.pos, offset);
     return point;
 }
 
 bool intersect_plane (Ray ray, Plane plane, float *parametric_hit) {
     float plane_offset = vec3_dot(plane.normal, plane.pos);
 
-    float x = (plane_offset - vec3_dot(plane.normal, ray.start))
+    float x = (plane_offset - vec3_dot(plane.normal, ray.pos))
         / vec3_dot(plane.normal, ray.dir);
 
     if (x > 0) {
@@ -227,7 +227,7 @@ bool intersect_plane (Ray ray, Plane plane, float *parametric_hit) {
 }
 
 bool intersect_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
-    Vector3 sphere_off = vec3_sub(ray.start, sphere.pos);
+    Vector3 sphere_off = vec3_sub(ray.pos, sphere.pos);
 
     float a = sq(ray.dir.x) + sq(ray.dir.y) + sq(ray.dir.z);
     float b = 2.0f*ray.dir.x*sphere_off.x + 2.0f*ray.dir.y*sphere_off.y +
@@ -496,7 +496,7 @@ Color color_from_all_lights (int object_index, Vector3 point) {
         Color this_color = color_from_light(lights[i], object, point);
 
         Ray shadow_ray = {0};
-        shadow_ray.start = point;
+        shadow_ray.pos = point;
         shadow_ray.dir = vec3_sub(lights[i].pos, point);
 
         bool did_we_hit = intersect_scene_with_one_exception(
@@ -509,11 +509,11 @@ Color color_from_all_lights (int object_index, Vector3 point) {
     return color_mul(result, object_material(object, point).color);
 }
 
-Color color_lerp (Color a, Color b, float lerp) {
+Color color_lerp (Color a, Color b, float alpha) {
     return (Color) {
-        (1.0f - lerp) * a.r + lerp * b.r,
-        (1.0f - lerp) * a.g + lerp * b.g,
-        (1.0f - lerp) * a.b + lerp * b.b,
+        (1.0f - alpha) * a.r + alpha * b.r,
+        (1.0f - alpha) * a.g + alpha * b.g,
+        (1.0f - alpha) * a.b + alpha * b.b,
     };
 }
 
@@ -541,7 +541,7 @@ Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
 
             Ray reflection = {0};
             reflection.dir = vec3_normalize(reflection_dir);
-            reflection.start = hit_point;
+            reflection.pos = hit_point;
 
             Color mirror_color =
                 get_ray_color_with_one_exception(reflection, depth + 1, hit_object);
@@ -559,15 +559,19 @@ Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
 void raytrace (Win32_Offscreen_Buffer *buffer) {
     u8 * row = (u8 *) buffer->memory;
 
+    Ray camera = (Ray) {
+        .pos = (Vector3) {0.0f, 0.0f, 0.0f},
+        .dir = (Vector3) {0.0f, 0.0f, 1.0f}
+    };
+
     for (int y = 0; y < buffer->height; ++y) {
     
         u32 * pixel = (u32 *) row; 
         for (int x = 0; x < buffer->width; ++x) {
 
-            Ray sight = {0};
-            sight.dir.x = (-(float)x + buffer->width/2 ) / buffer->height;
-            sight.dir.y = (-(float)y + buffer->height/2) / buffer->height;
-            sight.dir.z = 1;
+            Ray sight = camera;
+            sight.dir.x += (-(float)x + buffer->width/2 ) / buffer->height * 1.5f;
+            sight.dir.y += (-(float)y + buffer->height/2) / buffer->height * 1.5f;
 
             Color surface_color = get_ray_color_with_one_exception(sight, 0, -1);
 

@@ -3,6 +3,9 @@
 
 // setup scene
 
+#define MAT_DEFAULT(obj) obj.color = (Color) {1.0f, 1.0f, 1.0f}, obj.mirror = 0.0f, \
+obj.diffuseness = 1.0f, obj.specularness = 0.4f, obj.smoothness = 4.0f, obj.metalness = 0.2f
+
 void setup_scene () {
     scene[1] = (Object) {
         .type = OBJ_SPHERE,
@@ -10,8 +13,8 @@ void setup_scene () {
         .sphere.pos = (Vector3) {8.0f, 1.5f, 22.5f},
         .sphere.r = 3.0f,
 
+        MAT_DEFAULT(.sphere.material),
         .sphere.material.color = (Color) {1.0f, 0.3f, 0.3f},
-        .sphere.material.mirror = 0.0f
     };
 
     scene[2] = (Object) {
@@ -20,8 +23,12 @@ void setup_scene () {
         .sphere.pos = (Vector3) {0.0f, 3.0f, 25.0f},
         .sphere.r = 6.0f,
 
+        MAT_DEFAULT(.sphere.material),
         .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
-        .sphere.material.mirror = 0.8f
+        .sphere.material.mirror = 0.8f,
+        .sphere.material.specularness = 1.0f,
+        .sphere.material.smoothness = 30.0f,
+        .sphere.material.metalness = 1.0f
     };
 
     scene[0] = (Object) {
@@ -30,8 +37,8 @@ void setup_scene () {
         .sphere.pos = (Vector3) {-9.0f, 1.2f, 25.0f},
         .sphere.r = 4.0f,
 
+        MAT_DEFAULT(.sphere.material),
         .sphere.material.color = (Color) {0.3f, 1.0f, 0.3f},
-        .sphere.material.mirror = 0.0f
     };
 
     scene[4] = (Object) {
@@ -40,8 +47,8 @@ void setup_scene () {
         .sphere.pos = (Vector3) {0.0f, 16.0f, 21.0f},
         .sphere.r = 4.0f,
 
+        MAT_DEFAULT(.sphere.material),
         .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
-        .sphere.material.mirror = false
     };
 
     scene[3] = (Object) {
@@ -50,11 +57,13 @@ void setup_scene () {
         .checkerboard.plane.pos = (Vector3) {0.0f, 3.0f, 27.0f},
         .checkerboard.plane.normal = (Vector3) {-0.5f, 1.0f, -1.0f},
 
+        MAT_DEFAULT(.checkerboard.plane.material),
         .checkerboard.plane.material.color = (Color) {1.0f, 1.0f, 1.0f},
-        .checkerboard.plane.material.mirror = 0.1f,
+        .checkerboard.plane.material.mirror = 0.2f,
 
+        MAT_DEFAULT(.checkerboard.material_2),
         .checkerboard.material_2.color = (Color) {0.3f, 0.3f, 0.3f},
-        .checkerboard.material_2.mirror = 0.1f,
+        .checkerboard.material_2.mirror = 0.2f,
 
         .checkerboard.scale = 5.0f
     };
@@ -67,7 +76,7 @@ void setup_scene () {
 
     lights[1] = (Light) {
         .color = (Color) {0.7f, 0.7f, 0.5f},
-        .pos = (Vector3) {0.0f, 0.0f, 5.0f}
+        .pos = (Vector3) {5.0f, 0.0f, 5.0f}
     };
 }
 
@@ -87,8 +96,8 @@ void raytrace (Win32_Offscreen_Buffer *buffer) {
             Ray sight = camera;
             sight.dir.x += (-(float)x + buffer->width/2 ) / buffer->height * 1.5f;
             sight.dir.y += (-(float)y + buffer->height/2) / buffer->height * 1.5f;
-
-            Color surface_color = get_ray_color_with_one_exception(sight, 0, -1);
+            
+            Color surface_color = ray_color_with_except(sight, 0, -1);
 
             u8 green = (u8)(surface_color.g * 255);
             u8 blue  = (u8)(surface_color.b * 255);

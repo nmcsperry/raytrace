@@ -26,6 +26,10 @@ typedef struct Color {
 typedef struct Material {
     Color color;
     float mirror;
+    float metalness;
+    float specularness;
+    float diffuseness;
+    float smoothness;
 } Material;
 
 typedef struct Sphere {
@@ -390,6 +394,10 @@ Color color_mul (Color a, Color b) {
     return (Color) {a.r * b.r, a.g * b.g, a.b * b.b};
 }
 
+Color color_scale (Color a, float b) {
+    return (Color) {a.r * b, a.g * b, a.b * b};
+}
+
 Color color_lerp (Color a, Color b, float alpha) {
     return (Color) {
         (1.0f - alpha) * a.r + alpha * b.r,
@@ -397,7 +405,6 @@ Color color_lerp (Color a, Color b, float alpha) {
         (1.0f - alpha) * a.b + alpha * b.b,
     };
 }
-
 
 bool intersect_object (Ray ray, Object object, float *hit) {
     bool intersect = false;
@@ -447,7 +454,7 @@ bool intersect_scene (Ray ray, float *hit, int *hit_object) {
     return found_anything;
 }
 
-bool intersect_scene_with_one_exception (
+bool intersect_scene_with_except (
     Ray ray, float *hit, int *hit_object, int exception
 ) {
     float closest_hit = INFINITY;
@@ -481,7 +488,7 @@ bool intersect_scene_with_one_exception (
     return found_anything;
 }
 
-Color color_from_light (Light light, Object object, Vector3 point) {
+Color diffuse_from_light (Light light, Object object, Vector3 point) {
     Color result = {0};
     
     Vector3 normal = object_normal(object, point);
@@ -500,29 +507,62 @@ Color color_from_light (Light light, Object object, Vector3 point) {
     return result;
 }
 
-Color color_from_all_lights (int object_index, Vector3 point) {
+Color specular_from_light (
+    Light light, Object object, Vector3 point, Ray sight, Material material
+) {
+    Color result = {0};
+    
+    Vector3 normal = object_normal(object, point);
+    Vector3 sight_dir = vec3_normalize(sight.dir);
+    Vector3 light_dir = vec3_normalize(vec3_sub(point, light.pos));
+
+    // dir - normal * 2 (dir . normal)
+    Vector3 reflect_light_dir = vec3_sub(light_dir, vec3_mul(normal, 2.0f * vec3_dot(light_dir, normal)));
+    reflect_light_dir = vec3_normalize(reflect_light_dir);
+
+    float lightness = -1.0f * vec3_dot(reflect_light_dir, sight_dir);
+
+    float sm = material.metalness;
+    Color specular_color = color_add(color_scale(material.color, sm), color_scale((Color) {1, 1, 1}, 1 - sm));
+
+    if (lightness > 0) {
+        result.g = pow(lightness, material.smoothness) * light.color.g;
+        result.b = pow(lightness, material.smoothness) * light.color.b;
+        result.r = pow(lightness, material.smoothness) * light.color.r;
+    }
+
+    return result;
+}
+
+Color color_from_all_lights (int object_index, Vector3 point, Ray sight, Color object_color) {
     Color result = {0};
 
     Object object = scene[object_index];
+    Material material = object_material(object, point);
 
     for (int i = 0; i < ARRAY_LEN(lights); i++) {
-        Color this_color = color_from_light(lights[i], object, point);
-
         Ray shadow_ray = {0};
         shadow_ray.pos = point;
         shadow_ray.dir = vec3_sub(lights[i].pos, point);
 
-        bool did_we_hit = intersect_scene_with_one_exception(
+        bool did_we_hit = intersect_scene_with_except(
             shadow_ray, NULL, NULL, object_index);
         
-        if (!did_we_hit)
-            result = color_add(result, this_color);
+        if (!did_we_hit) {
+
+            Color diffuse = color_scale(diffuse_from_light(lights[i], object, point), material.diffuseness);
+            Color specular = color_scale(
+                specular_from_light(lights[i], object, point, sight, material), material.specularness);
+
+            result = color_add(result, color_mul(diffuse, object_color));
+            result = color_add(result, specular);
+        }
     }
     
-    return color_mul(result, object_material(object, point).color);
+    return result; 
 }
 
-Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
+Color ray_color_with_except (Ray sight, int depth, int exception) {
     Color result = {0};
 
     if (depth > 20) {
@@ -533,29 +573,33 @@ Color get_ray_color_with_one_exception (Ray sight, int depth, int exception) {
     float hit;
     int hit_object;
     
-    if (intersect_scene_with_one_exception(sight, &hit, &hit_object, exception)) {
+    if (intersect_scene_with_except(sight, &hit, &hit_object, exception)) {
         Vector3 hit_point = parametric_line(hit, sight);
 
-        float mirror = object_material(scene[hit_object], hit_point).mirror;
+        Object object = scene[hit_object];
+
+        float mirror = object_material(object, hit_point).mirror;
 
         if (mirror > 0.0f) {
-            Vector3 normal = object_normal(scene[hit_object], hit_point);
+            Vector3 normal = object_normal(object, hit_point);
             Vector3 dir = vec3_normalize(sight.dir);
         
+            // dir - normal * 2 (dir . normal)
             Vector3 reflection_dir = vec3_sub(dir, vec3_mul(normal, 2.0f * vec3_dot(dir, normal)));
 
             Ray reflection = {0};
             reflection.dir = vec3_normalize(reflection_dir);
             reflection.pos = hit_point;
 
-            Color mirror_color =
-                get_ray_color_with_one_exception(reflection, depth + 1, hit_object);
-            Color light_color = color_from_all_lights(hit_object, hit_point); 
+            Color mirror_color = ray_color_with_except(reflection, depth + 1, hit_object);
+            Color object_color = color_lerp(object_material(object, hit_point).color, mirror_color, mirror);
 
-            result = color_lerp(light_color, mirror_color, mirror);
-            // result = color_add(light_color, mirror_color);
+            Color light_color = color_from_all_lights(hit_object, hit_point, sight, object_color); 
+
+            result = light_color;
         } else {
-            result = color_from_all_lights(hit_object, hit_point); 
+            result = color_from_all_lights(
+                hit_object, hit_point, sight, object_material(object, hit_point).color); 
         }
     }
 

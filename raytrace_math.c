@@ -9,6 +9,8 @@
 
 #define ARRAY_LEN(x) sizeof((x))/sizeof((x)[0])
 
+#define EPSILON 0.0004
+
 // types
 
 typedef struct Vector3 {
@@ -73,13 +75,14 @@ typedef struct Object {
         Sphere sphere;
         Plane plane;
         Checkerboard checkerboard;
+        Compound_Sphere compound_sphere;
     };
     Material material;
 } Object;
 
 // global scene variables
 
-Object scene[4];
+Object scene[6];
 Light lights[3];
 
 // float math
@@ -95,7 +98,7 @@ float fclamp (float a, float max, float min) {
 }
 
 bool fequal (float a, float b) {
-    float epsilon = 0.0005;
+    float epsilon = EPSILON;
     if (a + epsilon > b && a - epsilon < b) return true;
     return false;
 }
@@ -227,9 +230,6 @@ Vector3 object_normal (Object object, Vector3 point) {
         case OBJ_SPHERE:
             normal = sphere_normal(object.sphere, point);
             break;
-        case OBJ_COMPOUNDSPHERE:
-            normal = sphere_normal(object.sphere, point);
-            break;
         case OBJ_PLANE:
             normal = plane_normal(object.plane, point);
             break;
@@ -258,6 +258,44 @@ bool intersect_plane (Ray ray, Plane plane, float *parametric_hit) {
         return true;
     }
 
+    return false;
+}
+
+bool intersect_anti_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
+    Vector3 sphere_off = vec3_sub(ray.pos, sphere.pos);
+
+    float a = sq(ray.dir.x) + sq(ray.dir.y) + sq(ray.dir.z);
+    float b = 2.0f*ray.dir.x*sphere_off.x + 2.0f*ray.dir.y*sphere_off.y +
+        2.0f*ray.dir.z*sphere_off.z;
+    float c = sq(sphere_off.x) + sq(sphere_off.y) + sq(sphere_off.z) - sq(sphere.r);
+
+    float answers[2];
+
+    int num_answers = quadform_only_positive(a, b, c, answers);
+
+    switch (num_answers) {
+        case 0:
+            return false;
+
+        case 1:
+            if (parametric_hit != NULL)
+                *parametric_hit = answers[0];
+            return true;
+
+        case 2:
+            if (parametric_hit != NULL)
+                if (answers[0] > answers[1])
+                    *parametric_hit = answers[0];
+                else
+                    *parametric_hit = answers[1];
+            return true;
+
+        default:
+            DEBUG_PRINT("Something is seriously messed up.");
+            return false;
+    }
+
+    if (num_answers > 0) return true;
     return false;
 }
 
@@ -320,6 +358,7 @@ Material checkerboard_choose_material (Object object, Vector3 point) {
 Material object_material (Object object, Vector3 point) {
     Material material;
     switch (object.type) {
+        case OBJ_COMPOUNDSPHERE:
         case OBJ_SPHERE:
         case OBJ_PLANE:
             material = object.material;
@@ -368,12 +407,38 @@ bool intersect_object (Ray ray, Object object, float *hit, Vector3 *hit_normal) 
         case OBJ_SPHERE: {
             intersect = intersect_sphere(ray, object.sphere, hit);
             Vector3 hit_point = parametric_line(*hit, ray);
-            *hit_normal = object_normal(object, hit_point);
+            *hit_normal = sphere_normal(object.sphere, hit_point);
         } break;
         case OBJ_COMPOUNDSPHERE: {
-            intersect = intersect_sphere(ray, object.sphere, hit);
-            Vector3 hit_point = parametric_line(*hit, ray);
-            *hit_normal = object_normal(object, hit_point);
+            Sphere real_sphere = object.compound_sphere.real_sphere;
+            Sphere anti_sphere = object.compound_sphere.anti_sphere;
+
+            float initial_hit;
+            intersect = intersect_sphere(ray, real_sphere, &initial_hit);
+            if (!intersect) return false;
+
+            Vector3 hit_point = parametric_line(initial_hit, ray);
+
+            if (inside_sphere(hit_point, anti_sphere)) {
+                intersect = false;
+
+                Ray new_ray;
+                new_ray.pos = ray.pos;//vec3_add(ray.pos, vec3_mul(ray.dir, 5));
+                new_ray.dir = ray.dir;
+
+                float anti_hit;
+                if (intersect_anti_sphere(new_ray, anti_sphere, &anti_hit)) {
+                    Vector3 anti_hit_point = parametric_line(anti_hit, new_ray);
+                    if (inside_sphere(anti_hit_point, real_sphere)) {
+                        *hit = anti_hit;
+                        *hit_normal = vec3_mul(sphere_normal(anti_sphere, anti_hit_point), -1.0f);
+                        intersect = true;
+                    }
+                }
+            } else {
+                *hit = initial_hit;
+                *hit_normal = sphere_normal(real_sphere, hit_point);
+            }
         } break;
         case OBJ_PLANE: {
             intersect = intersect_plane(ray, object.plane, hit);
@@ -484,10 +549,11 @@ Color color_from_all_lights (int object_index, Vector3 point, Vector3 normal, Ra
 
     for (int i = 0; i < ARRAY_LEN(lights); i++) {
         Ray shadow_ray = {0};
-        shadow_ray.pos = point;
-        shadow_ray.dir = vec3_sub(lights[i].pos, point);
+        shadow_ray.dir = vec3_normalize(vec3_sub(lights[i].pos, point));
+        shadow_ray.pos = vec3_add(point, vec3_mul(shadow_ray.dir, EPSILON));
 
-        bool did_we_hit = intersect_scene_with_except(shadow_ray, NULL, NULL, NULL, object_index);
+        // bool did_we_hit = intersect_scene_with_except(shadow_ray, NULL, NULL, NULL, object_index);
+        bool did_we_hit = intersect_scene(shadow_ray, NULL, NULL, NULL);
         
         if (!did_we_hit) {
             Color diffuse_comp = diffuse_from_light(lights[i], object, point, normal);
@@ -533,9 +599,10 @@ Color ray_color_with_except (Ray sight, int depth, int exception) {
 
             Ray reflection = {0};
             reflection.dir = vec3_normalize(reflection_dir);
-            reflection.pos = hit_point;
+            reflection.pos = vec3_add(hit_point, vec3_mul(reflection.dir, EPSILON));
 
-            Color mirror_color = ray_color_with_except(reflection, depth + 1, hit_object);
+
+            Color mirror_color = ray_color_with_except(reflection, depth + 1, -1);
             Color base_color = object_material(object, hit_point).color;
             Color object_color = color_lerp(base_color, mirror_color, mirror);
 

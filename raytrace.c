@@ -24,9 +24,10 @@ void setup_scene () {
         .sphere.r = 6.0f,
 
         MAT_DEFAULT(.material),
-        .material.color = (Color) {0.3f, 0.3f, 1.0f},
+        .material.color = (Color) {0.5f, 0.5f, 1.0f},
         .material.mirror = 0.8f,
         .material.specularness = 1.0f,
+        .material.diffuseness = 1.0f,
         .material.shinyness = 30.0f,
         .material.metalness = 1.0f
     };
@@ -38,17 +39,34 @@ void setup_scene () {
         .sphere.r = 4.0f,
 
         MAT_DEFAULT(.material),
+        .material.specularness = 0.1,
+        .material.diffuseness  = 0.8,
         .material.color = (Color) {0.3f, 1.0f, 0.3f},
     };
 
     scene[4] = (Object) {
-        .type = OBJ_SPHERE,
+        .type = OBJ_COMPOUNDSPHERE,
 
-        .sphere.pos = (Vector3) {0.0f, 16.0f, 21.0f},
-        .sphere.r = 4.0f,
+        .compound_sphere.real_sphere.pos = (Vector3) {-2.0f, -7.0f, 19.0f},
+        .compound_sphere.real_sphere.r = 4.0f,
+        .compound_sphere.anti_sphere.pos = (Vector3) {-2.0f, -0.5f, 17.0f},
+        .compound_sphere.anti_sphere.r = 5.0f,
 
         MAT_DEFAULT(.material),
-        .material.color = (Color) {0.3f, 0.3f, 1.0f},
+        .material.color = (Color) {0.8f, 0.3f, 0.8f},
+        .material.mirror = 0.8f
+    };
+
+    scene[5] = (Object) {
+        .type = OBJ_SPHERE,
+
+        .sphere.pos = (Vector3) {-2.0f, -4.0f, 16.0f},
+        .sphere.r = 0.5f,
+
+        MAT_DEFAULT(.material),
+        .material.specularness = 0.1,
+        .material.diffuseness  = 0.8,
+        .material.color = (Color) {0.3f, 1.0f, 0.3f},
     };
 
     scene[3] = (Object) {
@@ -59,11 +77,9 @@ void setup_scene () {
 
         MAT_DEFAULT(.material),
         .material.color = (Color) {1.0f, 1.0f, 1.0f},
-        .material.mirror = 0.2f,
 
         MAT_DEFAULT(.checkerboard.material_2),
         .checkerboard.material_2.color = (Color) {0.3f, 0.3f, 0.3f},
-        .checkerboard.material_2.mirror = 0.2f,
 
         .checkerboard.scale = 5.0f
     };
@@ -84,7 +100,7 @@ void raytrace (Win32_Offscreen_Buffer *buffer) {
     u8 * row = (u8 *) buffer->memory;
 
     Ray camera = (Ray) {
-        .pos = (Vector3) {0.0f, 0.0f, 0.0f},
+        .pos = (Vector3) {0.0f, 0.0f, 1.0f},
         .dir = (Vector3) {0.0f, 0.0f, 1.0f}
     };
 
@@ -94,8 +110,8 @@ void raytrace (Win32_Offscreen_Buffer *buffer) {
         for (int x = 0; x < buffer->width; ++x) {
 
             Ray sight = camera;
-            sight.dir.x += (-(float)x + buffer->width/2 ) / buffer->height * 1.5f;
-            sight.dir.y += (-(float)y + buffer->height/2) / buffer->height * 1.5f;
+            sight.dir.x += (-(float)x + buffer->width/2 ) / buffer->height * 1.2f;
+            sight.dir.y += (-(float)y + buffer->height/2) / buffer->height * 1.2f;
             
             Color surface_color = ray_color_with_except(sight, 0, -1);
 

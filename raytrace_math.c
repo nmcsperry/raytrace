@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <math.h>
+#include <windows.h>
 
 #define DEBUG_PRINT(...) { \
     char _debug_str[256]; \
@@ -32,6 +33,8 @@ typedef struct Material {
     float specularness;
     float diffuseness;
     float shinyness;
+    int refract;
+    float refract_amount;
 } Material;
 
 typedef struct Sphere {
@@ -299,6 +302,35 @@ bool intersect_anti_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
     return false;
 }
 
+bool inside_plane(Vector3 point, Plane plane) {
+    float plane_offset = vec3_dot(plane.normal, plane.pos);
+
+    float dist = point.x * plane.pos.x + point.y * plane.pos.y + point.z * plane.pos.z;
+    if (dist < plane_offset)
+        return true;
+    return false;
+}
+
+bool inside_sphere(Vector3 point, Sphere sphere) {
+    float dist = sq(point.x - sphere.pos.x) + sq(point.y - sphere.pos.y) + sq(point.z - sphere.pos.z);
+    if (dist < sq(sphere.r))
+        return true;
+    return false;
+}
+
+bool inside_object (Vector3 point, Object object) {
+    switch(object.type) {
+        case OBJ_SPHERE:
+            return inside_sphere(point, object.sphere);
+        case OBJ_PLANE:
+            return inside_plane(point, object.plane);
+        case OBJ_CHECKERBOARD:
+            return inside_plane(point, object.checkerboard.plane);
+        default:
+            return false;
+    }
+}
+
 bool intersect_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
     Vector3 sphere_off = vec3_sub(ray.pos, sphere.pos);
 
@@ -370,35 +402,6 @@ Material object_material (Object object, Vector3 point) {
     }
 
     return material;
-}
-
-bool inside_plane(Vector3 point, Plane plane) {
-    float plane_offset = vec3_dot(plane.normal, plane.pos);
-
-    float dist = point.x * plane.pos.x + point.y * plane.pos.y + point.z * plane.pos.z;
-    if (dist < plane_offset)
-        return true;
-    return false;
-}
-
-bool inside_sphere(Vector3 point, Sphere sphere) {
-    float dist = sq(point.x - sphere.pos.x) + sq(point.y - sphere.pos.y) + sq(point.z - sphere.pos.z);
-    if (dist < sq(sphere.r))
-        return true;
-    return false;
-}
-
-bool inside_object (Vector3 point, Object object) {
-    switch(object.type) {
-        case OBJ_SPHERE:
-            return inside_sphere(point, object.sphere);
-        case OBJ_PLANE:
-            return inside_plane(point, object.plane);
-        case OBJ_CHECKERBOARD:
-            return inside_plane(point, object.checkerboard.plane);
-        default:
-            return false;
-    }
 }
 
 bool intersect_object (Ray ray, Object object, float *hit, Vector3 *hit_normal) {
@@ -548,12 +551,22 @@ Color color_from_all_lights (int object_index, Vector3 point, Vector3 normal, Ra
     Material material = object_material(object, point);
 
     for (int i = 0; i < ARRAY_LEN(lights); i++) {
+        Vector3 point_to_light = vec3_sub(lights[i].pos, point);
+
         Ray shadow_ray = {0};
-        shadow_ray.dir = vec3_normalize(vec3_sub(lights[i].pos, point));
+        shadow_ray.dir = vec3_normalize(point_to_light);
         shadow_ray.pos = vec3_add(point, vec3_mul(shadow_ray.dir, EPSILON));
 
-        // bool did_we_hit = intersect_scene_with_except(shadow_ray, NULL, NULL, NULL, object_index);
-        bool did_we_hit = intersect_scene(shadow_ray, NULL, NULL, NULL);
+        float shadow_hit;
+        int hit_object;
+        bool did_we_hit = intersect_scene(shadow_ray, &shadow_hit, &hit_object, NULL);
+        if (did_we_hit) {
+            float light_hit = vec3_dot(point_to_light, point_to_light);
+            if (light_hit < sq(shadow_hit)) did_we_hit = false;
+        }
+        if (did_we_hit) {
+            if (scene[hit_object].material.refract) did_we_hit = false;
+        }
         
         if (!did_we_hit) {
             Color diffuse_comp = diffuse_from_light(lights[i], object, point, normal);
@@ -590,17 +603,46 @@ Color ray_color_with_except (Ray sight, int depth, int exception) {
         // normal = object_normal(object, hit_point);
 
         float mirror = object_material(object, hit_point).mirror;
+        int refract = object_material(object, hit_point).refract;
+        float refract_amount = object_material(object, hit_point).refract_amount;
 
-        if (mirror > 0.0f) {
+        if (refract) {
+            if (inside_object(
+                vec3_sub(hit_point, vec3_mul(sight.dir, EPSILON)),
+                object
+            )) {
+                refract_amount = 1 / refract_amount;
+                normal = vec3_mul(normal, -1);
+            }
+
+            Vector3 dir = vec3_normalize(sight.dir);
+
+            float c1 = -vec3_dot(dir, normal);
+            float c2 = sqrt(1 - sq(refract_amount) * (1 - sq(c1)));
+            Vector3 refraction_dir = vec3_add(
+                vec3_mul(dir, refract_amount),
+                vec3_mul(normal, refract_amount * c1 - c2)
+            );
+
+            Ray refraction = {0};
+            refraction.dir = vec3_normalize(refraction_dir);
+            refraction.pos = vec3_add(hit_point, vec3_mul(refraction.dir, EPSILON));
+
+            Color refraction_color = ray_color_with_except(refraction, depth + 1, -1);
+            // Color light_color = color_from_all_lights(
+            //     hit_object, hit_point, normal, sight, refraction_color); 
+
+            result = refraction_color;
+        }
+        else if (mirror > 0.0f) {
             Vector3 dir = vec3_normalize(sight.dir);
         
             // dir - normal * 2 (dir . normal)
-            Vector3 reflection_dir = vec3_sub(dir, vec3_mul(normal, 2.0f * vec3_dot(dir, normal)));
 
+            Vector3 reflection_dir = vec3_sub(dir, vec3_mul(normal, 2.0f * vec3_dot(dir, normal)));
             Ray reflection = {0};
             reflection.dir = vec3_normalize(reflection_dir);
             reflection.pos = vec3_add(hit_point, vec3_mul(reflection.dir, EPSILON));
-
 
             Color mirror_color = ray_color_with_except(reflection, depth + 1, -1);
             Color base_color = object_material(object, hit_point).color;

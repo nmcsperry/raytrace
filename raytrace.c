@@ -29,7 +29,7 @@ void setup_scene () {
         .material.specularness = 1.0f,
         .material.diffuseness = 1.0f,
         .material.shinyness = 30.0f,
-        .material.metalness = 1.0f
+        .material.metalness = 1.0f,
     };
 
     scene[0] = (Object) {
@@ -44,30 +44,51 @@ void setup_scene () {
         .material.color = (Color) {0.3f, 1.0f, 0.3f},
     };
 
+    scene[5] = (Object) {
+        .type = OBJ_SPHERE,
+
+        .sphere.pos = (Vector3) {9.0f, 5.0f, 19.0f},
+        .sphere.r = 3.0f,
+
+        MAT_DEFAULT(.material),
+        .material.color = (Color) {0.5f, 0.5f, 1.0f},
+        .material.mirror = 0.8f,
+        .material.specularness = 1.0f,
+        .material.diffuseness = 1.0f,
+        .material.shinyness = 30.0f,
+        .material.metalness = 1.0f,
+        .material.refract = 1,
+        .material.refract_amount = 0.9f
+    };
+
     scene[4] = (Object) {
         .type = OBJ_COMPOUNDSPHERE,
 
         .compound_sphere.real_sphere.pos = (Vector3) {-2.0f, -7.0f, 19.0f},
         .compound_sphere.real_sphere.r = 4.0f,
-        .compound_sphere.anti_sphere.pos = (Vector3) {-2.0f, -0.5f, 17.0f},
-        .compound_sphere.anti_sphere.r = 5.0f,
+        .compound_sphere.anti_sphere.pos = (Vector3) {-2.0f, -7.0f, 15.0f},
+        .compound_sphere.anti_sphere.r = 2.0f,
 
         MAT_DEFAULT(.material),
         .material.color = (Color) {0.8f, 0.3f, 0.8f},
-        .material.mirror = 0.8f
+        .material.specularness = 1.0,
+        .material.diffuseness = 0.5,
+        .material.shinyness = 25.0,
+        .material.color = (Color) {0.9f, 0.4f, 0.9f},
+        .material.mirror = 0.0f
     };
 
-    scene[5] = (Object) {
-        .type = OBJ_SPHERE,
+    // scene[5] = (Object) {
+    //     .type = OBJ_SPHERE,
 
-        .sphere.pos = (Vector3) {-2.0f, -4.0f, 16.0f},
-        .sphere.r = 0.5f,
+    //     .sphere.pos = (Vector3) {-2.0f, -4.0f, 16.0f},
+    //     .sphere.r = 0.5f,
 
-        MAT_DEFAULT(.material),
-        .material.specularness = 0.1,
-        .material.diffuseness  = 0.8,
-        .material.color = (Color) {0.3f, 1.0f, 0.3f},
-    };
+    //     MAT_DEFAULT(.material),
+    //     .material.specularness = 0.1,
+    //     .material.diffuseness  = 0.8,
+    //     .material.color = (Color) {0.3f, 1.0f, 0.3f},
+    // };
 
     scene[3] = (Object) {
         .type = OBJ_CHECKERBOARD,
@@ -93,6 +114,12 @@ void setup_scene () {
     lights[1] = (Light) {
         .color = (Color) {0.7f, 0.7f, 0.5f},
         .pos = (Vector3) {5.0f, 0.0f, 5.0f}
+    };
+
+    lights[2] = (Light) {
+        .color = (Color) {0.5f, 0.5f, 0.5f},
+        // .pos = (Vector3) {-2.0f, -3.0f, 19.0f},
+        .pos = (Vector3) {2.0f, -7.0f, 14.0f},
     };
 }
 

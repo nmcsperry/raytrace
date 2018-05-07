@@ -47,8 +47,8 @@ void setup_scene () {
     scene[5] = (Object) {
         .type = OBJ_SPHERE,
 
-        .sphere.pos = (Vector3) {9.0f, 5.0f, 19.0f},
-        .sphere.r = 3.0f,
+        .sphere.pos = (Vector3) {9.0f, 4.0f, 18.0f},
+        .sphere.r = 4.0f,
 
         MAT_DEFAULT(.material),
         .material.color = (Color) {0.5f, 0.5f, 1.0f},
@@ -58,7 +58,7 @@ void setup_scene () {
         .material.shinyness = 30.0f,
         .material.metalness = 1.0f,
         .material.refract = 1,
-        .material.refract_amount = 0.9f
+        .material.refract_amount = 0.93f
     };
 
     scene[4] = (Object) {

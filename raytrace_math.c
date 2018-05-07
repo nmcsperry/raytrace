@@ -629,10 +629,10 @@ Color ray_color_with_except (Ray sight, int depth, int exception) {
             refraction.pos = vec3_add(hit_point, vec3_mul(refraction.dir, EPSILON));
 
             Color refraction_color = ray_color_with_except(refraction, depth + 1, -1);
-            // Color light_color = color_from_all_lights(
-            //     hit_object, hit_point, normal, sight, refraction_color); 
+            Color light_color = color_from_all_lights(
+                hit_object, hit_point, normal, sight, refraction_color); 
 
-            result = refraction_color;
+            result = color_lerp(light_color, refraction_color, 0.7f);
         }
         else if (mirror > 0.0f) {
             Vector3 dir = vec3_normalize(sight.dir);

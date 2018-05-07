@@ -66,8 +66,8 @@ void setup_scene () {
 
         .compound_sphere.real_sphere.pos = (Vector3) {-2.0f, -7.0f, 19.0f},
         .compound_sphere.real_sphere.r = 4.0f,
-        .compound_sphere.anti_sphere.pos = (Vector3) {-2.0f, -7.0f, 15.0f},
-        .compound_sphere.anti_sphere.r = 2.0f,
+        .compound_sphere.anti_sphere.pos = (Vector3) {-1.0f, -3.0f, 16.0f},
+        .compound_sphere.anti_sphere.r = 3.0f,
 
         MAT_DEFAULT(.material),
         .material.color = (Color) {0.8f, 0.3f, 0.8f},

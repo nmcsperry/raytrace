@@ -29,19 +29,17 @@ typedef struct Material {
     float metalness;
     float specularness;
     float diffuseness;
-    float smoothness;
+    float shinyness;
 } Material;
 
 typedef struct Sphere {
     float r;
     Vector3 pos;
-    Material material;
 } Sphere;
 
 typedef struct Plane {
     Vector3 pos;
     Vector3 normal;
-    Material material;
 } Plane;
 
 typedef struct Checkerboard {
@@ -50,12 +48,10 @@ typedef struct Checkerboard {
     float scale;
 } Checkerboard;
 
-typedef struct Torus {
-    float inner_r;
-    float outer_r;
-    Vector3 pos;
-    Material material;
-} Torus;
+typedef struct Compound_Sphere {
+    Sphere real_sphere;
+    Sphere anti_sphere;
+} Compound_Sphere;
 
 typedef struct Ray {
     Vector3 pos;
@@ -68,7 +64,7 @@ typedef struct Light {
 } Light;
 
 typedef enum Object_Type {
-    OBJ_SPHERE, OBJ_PLANE, OBJ_CHECKERBOARD, OBJ_TORUS
+    OBJ_SPHERE, OBJ_PLANE, OBJ_CHECKERBOARD, OBJ_COMPOUNDSPHERE
 } Object_Type;
 
 typedef struct Object {
@@ -77,8 +73,8 @@ typedef struct Object {
         Sphere sphere;
         Plane plane;
         Checkerboard checkerboard;
-        Torus torus;
     };
+    Material material;
 } Object;
 
 // global scene variables
@@ -189,30 +185,36 @@ Vector3 vec3_cross (Vector3 a, Vector3 b) {
     };
 }
 
+// colors and matherials
+
+Color color_add (Color a, Color b) {
+    return (Color) {
+        fclamp(a.r + b.r, 1.0f, 0.0f),
+        fclamp(a.g + b.g, 1.0f, 0.0f),
+        fclamp(a.b + b.b, 1.0f, 0.0f)
+    };
+}
+
+Color color_mul (Color a, Color b) {
+    return (Color) {a.r * b.r, a.g * b.g, a.b * b.b};
+}
+
+Color color_scale (Color a, float b) {
+    return (Color) {a.r * b, a.g * b, a.b * b};
+}
+
+Color color_lerp (Color a, Color b, float alpha) {
+    return (Color) {
+        (1.0f - alpha) * a.r + alpha * b.r,
+        (1.0f - alpha) * a.g + alpha * b.g,
+        (1.0f - alpha) * a.b + alpha * b.b,
+    };
+}
+
 // shapes
 
 Vector3 sphere_normal (Sphere sphere, Vector3 point) {
     return vec3_normalize(vec3_sub(point, sphere.pos));
-}
-
-Vector3 torus_normal (Torus torus, Vector3 point) {
-    for (int i = 0; i < 360; i++) {
-        float rad = (float)i / 180 * 3.14159f;
-        float middle_r = (torus.inner_r + torus.outer_r) / 2;
-        Vector3 offset = {cos(rad) * middle_r, sin(rad) * middle_r, 0.0f};
-
-        Sphere new_sphere = (Sphere) {
-            .pos = vec3_add(torus.pos, offset),
-            .r = (torus.outer_r - torus.inner_r) / 2,
-        };
-        
-        Vector3 diff = vec3_sub(new_sphere.pos, point);
-        if (fequal(vec3_dot(diff, diff), new_sphere.r * new_sphere.r)) {
-            return sphere_normal(new_sphere, point);
-        }
-    }
-
-    return (Vector3) {0, 0, 0};
 }
 
 Vector3 plane_normal (Plane plane, Vector3 point) {
@@ -225,14 +227,14 @@ Vector3 object_normal (Object object, Vector3 point) {
         case OBJ_SPHERE:
             normal = sphere_normal(object.sphere, point);
             break;
+        case OBJ_COMPOUNDSPHERE:
+            normal = sphere_normal(object.sphere, point);
+            break;
         case OBJ_PLANE:
             normal = plane_normal(object.plane, point);
             break;
         case OBJ_CHECKERBOARD:
             normal = plane_normal(object.checkerboard.plane, point);
-            break;
-        case OBJ_TORUS:
-            normal = torus_normal(object.torus, point);
             break;
     }
 
@@ -297,53 +299,9 @@ bool intersect_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
     return false;
 }
 
-bool intersect_torus (
-    Ray ray, Torus torus, float *parametric_hit, int *sphere_hit
-) {
-    Sphere test_sphere = (Sphere) {
-        .pos = torus.pos,
-        .r = torus.outer_r,
-        .material = torus.material
-    }; 
+Material checkerboard_choose_material (Object object, Vector3 point) {
+    Checkerboard checkerboard = object.checkerboard;
 
-    if (!intersect_sphere(ray, test_sphere, NULL))
-        return false;
-
-    float first_hit = INFINITY;
-    int hit_index = -1;
-
-    for (int i = 0; i < 360; i++) {
-        float this_hit;
-        float rad = (float)i / 180 * 3.14159f;
-        float middle_r = (torus.inner_r + torus.outer_r) / 2;
-        Vector3 offset = {cos(rad) * middle_r, sin(rad) * middle_r, 0.0f};
-
-        Sphere new_sphere = (Sphere) {
-            .pos = vec3_add(torus.pos, offset),
-            .r = (torus.outer_r - torus.inner_r) / 2,
-            .material = torus.material
-        };
-
-        if (intersect_sphere(ray, new_sphere, &this_hit))
-            if (this_hit < first_hit) {
-                first_hit = this_hit;
-                hit_index = i;
-            }
-    }
-
-    if (first_hit != INFINITY) {
-        if (parametric_hit != NULL) *parametric_hit = first_hit;
-        if (sphere_hit != NULL) *sphere_hit = hit_index;
-        return true;
-    }
-
-    return false;
-}
-
-
-Material checkerboard_choose_material (
-    Checkerboard checkerboard, Vector3 point
-) {
     Vector3 v0 = (Vector3) {1.0f, 0.0f, 0.0f};   
     Vector3 u = vec3_normalize(vec3_cross(checkerboard.plane.normal, v0));
     Vector3 v = vec3_normalize(vec3_cross(checkerboard.plane.normal, u));
@@ -354,7 +312,7 @@ Material checkerboard_choose_material (
     int vi = (int) ceil(vec3_dot(v, ref) / checkerboard.scale);
 
     if ((unsigned)ui % 2 != (unsigned)vi % 2)
-        return checkerboard.plane.material;
+        return object.material;
     else
         return checkerboard.material_2;
 }
@@ -363,110 +321,92 @@ Material object_material (Object object, Vector3 point) {
     Material material;
     switch (object.type) {
         case OBJ_SPHERE:
-            material = object.sphere.material;
-            break;
         case OBJ_PLANE:
-            material = object.plane.material;
+            material = object.material;
             break;
         case OBJ_CHECKERBOARD:
             material = checkerboard_choose_material(
-                object.checkerboard, point);
-            break;
-        case OBJ_TORUS:
-            material = object.torus.material;
+                object, point);
             break;
     }
 
     return material;
 }
 
-// colors and matherials
+bool inside_plane(Vector3 point, Plane plane) {
+    float plane_offset = vec3_dot(plane.normal, plane.pos);
 
-Color color_add (Color a, Color b) {
-    return (Color) {
-        fclamp(a.r + b.r, 1.0f, 0.0f),
-        fclamp(a.g + b.g, 1.0f, 0.0f),
-        fclamp(a.b + b.b, 1.0f, 0.0f)
-    };
+    float dist = point.x * plane.pos.x + point.y * plane.pos.y + point.z * plane.pos.z;
+    if (dist < plane_offset)
+        return true;
+    return false;
 }
 
-Color color_mul (Color a, Color b) {
-    return (Color) {a.r * b.r, a.g * b.g, a.b * b.b};
+bool inside_sphere(Vector3 point, Sphere sphere) {
+    float dist = sq(point.x - sphere.pos.x) + sq(point.y - sphere.pos.y) + sq(point.z - sphere.pos.z);
+    if (dist < sq(sphere.r))
+        return true;
+    return false;
 }
 
-Color color_scale (Color a, float b) {
-    return (Color) {a.r * b, a.g * b, a.b * b};
+bool inside_object (Vector3 point, Object object) {
+    switch(object.type) {
+        case OBJ_SPHERE:
+            return inside_sphere(point, object.sphere);
+        case OBJ_PLANE:
+            return inside_plane(point, object.plane);
+        case OBJ_CHECKERBOARD:
+            return inside_plane(point, object.checkerboard.plane);
+        default:
+            return false;
+    }
 }
 
-Color color_lerp (Color a, Color b, float alpha) {
-    return (Color) {
-        (1.0f - alpha) * a.r + alpha * b.r,
-        (1.0f - alpha) * a.g + alpha * b.g,
-        (1.0f - alpha) * a.b + alpha * b.b,
-    };
-}
-
-bool intersect_object (Ray ray, Object object, float *hit) {
+bool intersect_object (Ray ray, Object object, float *hit, Vector3 *hit_normal) {
     bool intersect = false;
     switch (object.type) {
-        case OBJ_SPHERE:
+        case OBJ_SPHERE: {
             intersect = intersect_sphere(ray, object.sphere, hit);
-            break;
-        case OBJ_PLANE:
+            Vector3 hit_point = parametric_line(*hit, ray);
+            *hit_normal = object_normal(object, hit_point);
+        } break;
+        case OBJ_COMPOUNDSPHERE: {
+            intersect = intersect_sphere(ray, object.sphere, hit);
+            Vector3 hit_point = parametric_line(*hit, ray);
+            *hit_normal = object_normal(object, hit_point);
+        } break;
+        case OBJ_PLANE: {
             intersect = intersect_plane(ray, object.plane, hit);
-            break;
-        case OBJ_CHECKERBOARD:
+            Vector3 hit_point = parametric_line(*hit, ray);
+            *hit_normal = object_normal(object, hit_point);
+        } break;
+        case OBJ_CHECKERBOARD: {
             intersect = intersect_plane(ray, object.checkerboard.plane, hit);
-            break;
-        case OBJ_TORUS:
-            intersect = intersect_torus(ray, object.torus, hit, NULL);
-            break;
+            Vector3 hit_point = parametric_line(*hit, ray);
+            *hit_normal = object_normal(object, hit_point);
+        } break;
     }
+
     
     return intersect;
 }
 
-bool intersect_scene (Ray ray, float *hit, int *hit_object) {
-    float closest_hit = INFINITY;
-    int closest_hit_object = -1;
-    bool found_anything = false;
-
-    for (int i = 0; i < ARRAY_LEN(scene); i++) {
-        float this_hit;
-
-        bool intersect = intersect_object(ray, scene[i], &this_hit);
-        
-        if (intersect) {
-            found_anything = true;
-
-            if (this_hit < closest_hit) {
-                closest_hit = this_hit;
-                closest_hit_object = i;
-            }
-        }
-    }
-
-    if (found_anything) {
-        *hit = closest_hit;
-        *hit_object = closest_hit_object;
-    }
-
-    return found_anything;
-}
-
 bool intersect_scene_with_except (
-    Ray ray, float *hit, int *hit_object, int exception
+    Ray ray, float *hit, int *hit_object, Vector3 *hit_normal, int exception
 ) {
     float closest_hit = INFINITY;
     int closest_hit_object = -1;
+    Vector3 closest_hit_normal;
+
     bool found_anything = false;
 
     for (int i = 0; i < ARRAY_LEN(scene); i++) {
         if (i == exception) continue;
 
         float this_hit;
+        Vector3 this_hit_normal;
 
-        bool intersect = intersect_object(ray, scene[i], &this_hit);
+        bool intersect = intersect_object(ray, scene[i], &this_hit, &this_hit_normal);
         
         if (intersect) {
             found_anything = true;
@@ -474,24 +414,26 @@ bool intersect_scene_with_except (
             if (this_hit < closest_hit) {
                 closest_hit = this_hit;
                 closest_hit_object = i;
+                closest_hit_normal = this_hit_normal;
             }
         }
     }
 
     if (found_anything) {
-        if (hit != NULL)
-            *hit = closest_hit;
-        if (hit_object != NULL)
-            *hit_object = closest_hit_object;
+        if (hit) *hit = closest_hit;
+        if (hit_object) *hit_object = closest_hit_object;
+        if (hit_normal) *hit_normal = closest_hit_normal;
     }
 
     return found_anything;
 }
 
-Color diffuse_from_light (Light light, Object object, Vector3 point) {
+bool intersect_scene (Ray ray, float *hit, int *hit_object, Vector3 *hit_normal) {
+    return intersect_scene_with_except (ray, hit, hit_object, hit_normal, -1);
+}
+
+Color diffuse_from_light (Light light, Object object, Vector3 point, Vector3 normal) {
     Color result = {0};
-    
-    Vector3 normal = object_normal(object, point);
 
     Vector3 direction_to_light = vec3_normalize(vec3_sub(
         point, light.pos));
@@ -508,11 +450,10 @@ Color diffuse_from_light (Light light, Object object, Vector3 point) {
 }
 
 Color specular_from_light (
-    Light light, Object object, Vector3 point, Ray sight, Material material
+    Light light, Object object, Vector3 point, Vector3 normal, Ray sight, Material material
 ) {
     Color result = {0};
     
-    Vector3 normal = object_normal(object, point);
     Vector3 sight_dir = vec3_normalize(sight.dir);
     Vector3 light_dir = vec3_normalize(vec3_sub(point, light.pos));
 
@@ -526,18 +467,19 @@ Color specular_from_light (
     Color specular_color = color_add(color_scale(material.color, sm), color_scale((Color) {1, 1, 1}, 1 - sm));
 
     if (lightness > 0) {
-        result.g = pow(lightness, material.smoothness) * light.color.g;
-        result.b = pow(lightness, material.smoothness) * light.color.b;
-        result.r = pow(lightness, material.smoothness) * light.color.r;
+        result.g = pow(lightness, material.shinyness) * light.color.g;
+        result.b = pow(lightness, material.shinyness) * light.color.b;
+        result.r = pow(lightness, material.shinyness) * light.color.r;
     }
 
     return result;
 }
 
-Color color_from_all_lights (int object_index, Vector3 point, Ray sight, Color object_color) {
+Color color_from_all_lights (int object_index, Vector3 point, Vector3 normal, Ray sight, Color object_color) {
     Color result = {0};
 
     Object object = scene[object_index];
+
     Material material = object_material(object, point);
 
     for (int i = 0; i < ARRAY_LEN(lights); i++) {
@@ -545,14 +487,14 @@ Color color_from_all_lights (int object_index, Vector3 point, Ray sight, Color o
         shadow_ray.pos = point;
         shadow_ray.dir = vec3_sub(lights[i].pos, point);
 
-        bool did_we_hit = intersect_scene_with_except(
-            shadow_ray, NULL, NULL, object_index);
+        bool did_we_hit = intersect_scene_with_except(shadow_ray, NULL, NULL, NULL, object_index);
         
         if (!did_we_hit) {
+            Color diffuse_comp = diffuse_from_light(lights[i], object, point, normal);
+            Color diffuse = color_scale(diffuse_comp, material.diffuseness);
 
-            Color diffuse = color_scale(diffuse_from_light(lights[i], object, point), material.diffuseness);
-            Color specular = color_scale(
-                specular_from_light(lights[i], object, point, sight, material), material.specularness);
+            Color specular_comp = specular_from_light(lights[i], object, point, normal, sight, material);
+            Color specular = color_scale(specular_comp, material.specularness);
 
             result = color_add(result, color_mul(diffuse, object_color));
             result = color_add(result, specular);
@@ -572,16 +514,18 @@ Color ray_color_with_except (Ray sight, int depth, int exception) {
 
     float hit;
     int hit_object;
+
+    Vector3 normal;
     
-    if (intersect_scene_with_except(sight, &hit, &hit_object, exception)) {
+    if (intersect_scene_with_except(sight, &hit, &hit_object, &normal, exception)) {
         Vector3 hit_point = parametric_line(hit, sight);
 
         Object object = scene[hit_object];
+        // normal = object_normal(object, hit_point);
 
         float mirror = object_material(object, hit_point).mirror;
 
         if (mirror > 0.0f) {
-            Vector3 normal = object_normal(object, hit_point);
             Vector3 dir = vec3_normalize(sight.dir);
         
             // dir - normal * 2 (dir . normal)
@@ -592,14 +536,16 @@ Color ray_color_with_except (Ray sight, int depth, int exception) {
             reflection.pos = hit_point;
 
             Color mirror_color = ray_color_with_except(reflection, depth + 1, hit_object);
-            Color object_color = color_lerp(object_material(object, hit_point).color, mirror_color, mirror);
+            Color base_color = object_material(object, hit_point).color;
+            Color object_color = color_lerp(base_color, mirror_color, mirror);
 
-            Color light_color = color_from_all_lights(hit_object, hit_point, sight, object_color); 
+            Color light_color = color_from_all_lights(
+                hit_object, hit_point, normal, sight, object_color); 
 
             result = light_color;
         } else {
-            result = color_from_all_lights(
-                hit_object, hit_point, sight, object_material(object, hit_point).color); 
+            Color base_color = object_material(object, hit_point).color;
+            result = color_from_all_lights(hit_object, hit_point, normal, sight, base_color); 
         }
     }
 

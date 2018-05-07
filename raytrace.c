@@ -4,7 +4,7 @@
 // setup scene
 
 #define MAT_DEFAULT(obj) obj.color = (Color) {1.0f, 1.0f, 1.0f}, obj.mirror = 0.0f, \
-obj.diffuseness = 1.0f, obj.specularness = 0.4f, obj.smoothness = 4.0f, obj.metalness = 0.2f
+obj.diffuseness = 1.0f, obj.specularness = 0.4f, obj.shinyness = 4.0f, obj.metalness = 0.2f
 
 void setup_scene () {
     scene[1] = (Object) {
@@ -13,8 +13,8 @@ void setup_scene () {
         .sphere.pos = (Vector3) {8.0f, 1.5f, 22.5f},
         .sphere.r = 3.0f,
 
-        MAT_DEFAULT(.sphere.material),
-        .sphere.material.color = (Color) {1.0f, 0.3f, 0.3f},
+        MAT_DEFAULT(.material),
+        .material.color = (Color) {1.0f, 0.3f, 0.3f},
     };
 
     scene[2] = (Object) {
@@ -23,12 +23,12 @@ void setup_scene () {
         .sphere.pos = (Vector3) {0.0f, 3.0f, 25.0f},
         .sphere.r = 6.0f,
 
-        MAT_DEFAULT(.sphere.material),
-        .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
-        .sphere.material.mirror = 0.8f,
-        .sphere.material.specularness = 1.0f,
-        .sphere.material.smoothness = 30.0f,
-        .sphere.material.metalness = 1.0f
+        MAT_DEFAULT(.material),
+        .material.color = (Color) {0.3f, 0.3f, 1.0f},
+        .material.mirror = 0.8f,
+        .material.specularness = 1.0f,
+        .material.shinyness = 30.0f,
+        .material.metalness = 1.0f
     };
 
     scene[0] = (Object) {
@@ -37,8 +37,8 @@ void setup_scene () {
         .sphere.pos = (Vector3) {-9.0f, 1.2f, 25.0f},
         .sphere.r = 4.0f,
 
-        MAT_DEFAULT(.sphere.material),
-        .sphere.material.color = (Color) {0.3f, 1.0f, 0.3f},
+        MAT_DEFAULT(.material),
+        .material.color = (Color) {0.3f, 1.0f, 0.3f},
     };
 
     scene[4] = (Object) {
@@ -47,8 +47,8 @@ void setup_scene () {
         .sphere.pos = (Vector3) {0.0f, 16.0f, 21.0f},
         .sphere.r = 4.0f,
 
-        MAT_DEFAULT(.sphere.material),
-        .sphere.material.color = (Color) {0.3f, 0.3f, 1.0f},
+        MAT_DEFAULT(.material),
+        .material.color = (Color) {0.3f, 0.3f, 1.0f},
     };
 
     scene[3] = (Object) {
@@ -57,9 +57,9 @@ void setup_scene () {
         .checkerboard.plane.pos = (Vector3) {0.0f, 3.0f, 27.0f},
         .checkerboard.plane.normal = (Vector3) {-0.5f, 1.0f, -1.0f},
 
-        MAT_DEFAULT(.checkerboard.plane.material),
-        .checkerboard.plane.material.color = (Color) {1.0f, 1.0f, 1.0f},
-        .checkerboard.plane.material.mirror = 0.2f,
+        MAT_DEFAULT(.material),
+        .material.color = (Color) {1.0f, 1.0f, 1.0f},
+        .material.mirror = 0.2f,
 
         MAT_DEFAULT(.checkerboard.material_2),
         .checkerboard.material_2.color = (Color) {0.3f, 0.3f, 0.3f},

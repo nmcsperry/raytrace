@@ -53,10 +53,10 @@ typedef struct Checkerboard {
     float scale;
 } Checkerboard;
 
-typedef struct Compound_Sphere {
+typedef struct Indent_Sphere {
     Sphere real_sphere;
     Sphere anti_sphere;
-} Compound_Sphere;
+} Indent_Sphere;
 
 typedef struct Ray {
     Vector3 pos;
@@ -69,7 +69,7 @@ typedef struct Light {
 } Light;
 
 typedef enum Object_Type {
-    OBJ_SPHERE, OBJ_PLANE, OBJ_CHECKERBOARD, OBJ_COMPOUNDSPHERE
+    OBJ_SPHERE, OBJ_PLANE, OBJ_CHECKERBOARD, OBJ_INDENTSPHERE
 } Object_Type;
 
 typedef struct Object {
@@ -78,7 +78,7 @@ typedef struct Object {
         Sphere sphere;
         Plane plane;
         Checkerboard checkerboard;
-        Compound_Sphere compound_sphere;
+        Indent_Sphere indent_sphere;
     };
     Material material;
 } Object;
@@ -88,7 +88,7 @@ typedef struct Object {
 Object scene[6];
 Light lights[3];
 
-// float math
+// math functions
 
 float sq (float a) {
     return a*a;
@@ -106,17 +106,20 @@ bool fequal (float a, float b) {
     return false;
 }
 
+// find solution to quadratic equation with quadratic formula
+// returns number of solutions and puts them in answers[]
 int quadform (float a, float b, float c, float *answers) {
-    if (b*b - 4.0*a*c < 0.0) return 0;
+    float discriminant = b*b - 4.0f*a*c;
+    if (discriminant < 0.0) return 0;
 
-    if (fequal(b*b - 4.0*a*c, 0.0f)) {
+    if (fequal(discriminant, 0.0f)) {
         float x1 = -b / 2.0f / a;
         answers[0] = x1;
         return 1;
     }
 
-    float x1 = (-b + sqrt(b*b - 4.0*a*c)) / 2.0f / a;
-    float x2 = (-b - sqrt(b*b - 4.0*a*c)) / 2.0f / a;
+    float x1 = (-b + sqrt(discriminant)) / 2.0f / a;
+    float x2 = (-b - sqrt(discriminant)) / 2.0f / a;
 
     answers[0] = x1;
     answers[1] = x2;
@@ -124,10 +127,14 @@ int quadform (float a, float b, float c, float *answers) {
     return 2;
 }
 
+// like the above function but it only finds positive solutions, used for finding
+// when a ray intersects a sphere because we only want the solutions in front
+// of the ray
 int quadform_only_positive (float a, float b, float c, float *answers) {
-    if (b*b - 4.0*a*c < 0.0) return 0;
+    float discriminant = b*b - 4.0f*a*c;
+    if (discriminant < 0.0) return 0;
 
-    if (fequal(b*b - 4.0*a*c, 0.0f)) {
+    if (fequal(discriminant, 0.0f)) {
         float x1 = -b / 2.0f / a;
 
         if (x1 > 0) {
@@ -138,8 +145,8 @@ int quadform_only_positive (float a, float b, float c, float *answers) {
         }
     }
 
-    float x1 = (-b + sqrt(b*b - 4.0*a*c)) / 2.0f / a;
-    float x2 = (-b - sqrt(b*b - 4.0*a*c)) / 2.0f / a;
+    float x1 = (-b + sqrt(discriminant)) / 2.0f / a;
+    float x2 = (-b - sqrt(discriminant)) / 2.0f / a;
 
     int index = 0;
 
@@ -156,7 +163,7 @@ int quadform_only_positive (float a, float b, float c, float *answers) {
     return index;
 }
 
-// vectors
+// vector functions
 
 Vector3 vec3_add (Vector3 a, Vector3 b) {
     return (Vector3) {a.x + b.x, a.y + b.y, a.z + b.z};
@@ -191,7 +198,7 @@ Vector3 vec3_cross (Vector3 a, Vector3 b) {
     };
 }
 
-// colors and matherials
+// colors and materials
 
 Color color_add (Color a, Color b) {
     return (Color) {
@@ -209,6 +216,7 @@ Color color_scale (Color a, float b) {
     return (Color) {a.r * b, a.g * b, a.b * b};
 }
 
+// gets color in between two colors in rgb
 Color color_lerp (Color a, Color b, float alpha) {
     return (Color) {
         (1.0f - alpha) * a.r + alpha * b.r,
@@ -216,6 +224,44 @@ Color color_lerp (Color a, Color b, float alpha) {
         (1.0f - alpha) * a.b + alpha * b.b,
     };
 }
+
+// checkerboards and different color/material properties depending on location
+Material checkerboard_choose_material (Object object, Vector3 point) {
+    Checkerboard checkerboard = object.checkerboard;
+
+    Vector3 v0 = (Vector3) {1.0f, 0.0f, 0.0f};   
+    Vector3 u = vec3_normalize(vec3_cross(checkerboard.plane.normal, v0));
+    Vector3 v = vec3_normalize(vec3_cross(checkerboard.plane.normal, u));
+
+    Vector3 ref = vec3_sub(point, checkerboard.plane.pos);
+
+    int ui = (int) ceil(vec3_dot(u, ref) / checkerboard.scale);
+    int vi = (int) ceil(vec3_dot(v, ref) / checkerboard.scale);
+
+    if ((unsigned)ui % 2 != (unsigned)vi % 2)
+        return object.material;
+    else
+        return checkerboard.material_2;
+}
+
+// returns an objects material, normally it's always the same except for checkerboards
+Material object_material (Object object, Vector3 point) {
+    Material material;
+    switch (object.type) {
+        case OBJ_INDENTSPHERE:
+        case OBJ_SPHERE:
+        case OBJ_PLANE:
+            material = object.material;
+            break;
+        case OBJ_CHECKERBOARD:
+            material = checkerboard_choose_material(
+                object, point);
+            break;
+    }
+
+    return material;
+}
+
 
 // shapes
 
@@ -244,6 +290,9 @@ Vector3 object_normal (Object object, Vector3 point) {
     return normal;
 }
 
+// gives a point a certain amount of the way along a ray. i called it
+// parametric_line because lots of times it makes sense to think about
+// a ray in terms of like x=at, y=bt, z=ct or something
 Vector3 parametric_line (float t, Ray ray) {
     Vector3 offset = vec3_mul(ray.dir, t);
     Vector3 point = vec3_add(ray.pos, offset);
@@ -251,6 +300,7 @@ Vector3 parametric_line (float t, Ray ray) {
 }
 
 bool intersect_plane (Ray ray, Plane plane, float *parametric_hit) {
+    // ax + by + cz = plane_offset
     float plane_offset = vec3_dot(plane.normal, plane.pos);
 
     float x = (plane_offset - vec3_dot(plane.normal, ray.pos))
@@ -267,6 +317,7 @@ bool intersect_plane (Ray ray, Plane plane, float *parametric_hit) {
 bool intersect_anti_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
     Vector3 sphere_off = vec3_sub(ray.pos, sphere.pos);
 
+    // this is based on setting a sphere equation equal to a line equation
     float a = sq(ray.dir.x) + sq(ray.dir.y) + sq(ray.dir.z);
     float b = 2.0f*ray.dir.x*sphere_off.x + 2.0f*ray.dir.y*sphere_off.y +
         2.0f*ray.dir.z*sphere_off.z;
@@ -302,6 +353,8 @@ bool intersect_anti_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
     return false;
 }
 
+// these inside functions are used for the indented sphere and stuff, the inside_plane
+// and inside_object ones aren't used because i didn't have time
 bool inside_plane(Vector3 point, Plane plane) {
     float plane_offset = vec3_dot(plane.normal, plane.pos);
 
@@ -369,41 +422,6 @@ bool intersect_sphere (Ray ray, Sphere sphere, float *parametric_hit) {
     return false;
 }
 
-Material checkerboard_choose_material (Object object, Vector3 point) {
-    Checkerboard checkerboard = object.checkerboard;
-
-    Vector3 v0 = (Vector3) {1.0f, 0.0f, 0.0f};   
-    Vector3 u = vec3_normalize(vec3_cross(checkerboard.plane.normal, v0));
-    Vector3 v = vec3_normalize(vec3_cross(checkerboard.plane.normal, u));
-
-    Vector3 ref = vec3_sub(point, checkerboard.plane.pos);
-
-    int ui = (int) ceil(vec3_dot(u, ref) / checkerboard.scale);
-    int vi = (int) ceil(vec3_dot(v, ref) / checkerboard.scale);
-
-    if ((unsigned)ui % 2 != (unsigned)vi % 2)
-        return object.material;
-    else
-        return checkerboard.material_2;
-}
-
-Material object_material (Object object, Vector3 point) {
-    Material material;
-    switch (object.type) {
-        case OBJ_COMPOUNDSPHERE:
-        case OBJ_SPHERE:
-        case OBJ_PLANE:
-            material = object.material;
-            break;
-        case OBJ_CHECKERBOARD:
-            material = checkerboard_choose_material(
-                object, point);
-            break;
-    }
-
-    return material;
-}
-
 bool intersect_object (Ray ray, Object object, float *hit, Vector3 *hit_normal) {
     bool intersect = false;
     switch (object.type) {
@@ -412,9 +430,20 @@ bool intersect_object (Ray ray, Object object, float *hit, Vector3 *hit_normal) 
             Vector3 hit_point = parametric_line(*hit, ray);
             *hit_normal = sphere_normal(object.sphere, hit_point);
         } break;
-        case OBJ_COMPOUNDSPHERE: {
-            Sphere real_sphere = object.compound_sphere.real_sphere;
-            Sphere anti_sphere = object.compound_sphere.anti_sphere;
+        case OBJ_INDENTSPHERE: {
+            // this part basically first checks to see if the ray intersects the real
+            // sphere, and then checks if it's inside the 'anti sphere', if it is,
+            // then it has to check if it hits the back of the 'anti sphere',
+            // i had trouble doign the normal thing of adding a small amount to the
+            // hit point and ray casting from there so i made an
+            // 'intersect_anti_sphere' function instead.
+
+            // in the future this idea could be expanded to include arbitrary shapes
+            // subtracting eachother and/or be expanded to include more types of
+            // operations like intersection, union, symmetric difference
+
+            Sphere real_sphere = object.indent_sphere.real_sphere;
+            Sphere anti_sphere = object.indent_sphere.anti_sphere;
 
             float initial_hit;
             intersect = intersect_sphere(ray, real_sphere, &initial_hit);
@@ -422,13 +451,16 @@ bool intersect_object (Ray ray, Object object, float *hit, Vector3 *hit_normal) 
 
             Vector3 hit_point = parametric_line(initial_hit, ray);
 
+            // are we inside the anti sphere? (if we are this hit doesn't count)
             if (inside_sphere(hit_point, anti_sphere)) {
                 intersect = false;
 
                 Ray new_ray;
-                new_ray.pos = ray.pos;//vec3_add(ray.pos, vec3_mul(ray.dir, 5));
+                new_ray.pos = ray.pos; //vec3_add(ray.pos, vec3_mul(ray.dir, EPSILON));
                 new_ray.dir = ray.dir;
 
+                // now do we hit the boundry between the antisphere and the normal sphere,
+                // or do we just go right through?
                 float anti_hit;
                 if (intersect_anti_sphere(new_ray, anti_sphere, &anti_hit)) {
                     Vector3 anti_hit_point = parametric_line(anti_hit, new_ray);
@@ -459,9 +491,8 @@ bool intersect_object (Ray ray, Object object, float *hit, Vector3 *hit_normal) 
     return intersect;
 }
 
-bool intersect_scene_with_except (
-    Ray ray, float *hit, int *hit_object, Vector3 *hit_normal, int exception
-) {
+// intersects against every object in the scene
+bool intersect_scene (Ray ray, float *hit, int *hit_object, Vector3 *hit_normal) {
     float closest_hit = INFINITY;
     int closest_hit_object = -1;
     Vector3 closest_hit_normal;
@@ -469,8 +500,6 @@ bool intersect_scene_with_except (
     bool found_anything = false;
 
     for (int i = 0; i < ARRAY_LEN(scene); i++) {
-        if (i == exception) continue;
-
         float this_hit;
         Vector3 this_hit_normal;
 
@@ -494,10 +523,6 @@ bool intersect_scene_with_except (
     }
 
     return found_anything;
-}
-
-bool intersect_scene (Ray ray, float *hit, int *hit_object, Vector3 *hit_normal) {
-    return intersect_scene_with_except (ray, hit, hit_object, hit_normal, -1);
 }
 
 Color diffuse_from_light (Light light, Object object, Vector3 point, Vector3 normal) {
@@ -543,6 +568,7 @@ Color specular_from_light (
     return result;
 }
 
+// figures out diffuse and specular contributions from all lights in the scene
 Color color_from_all_lights (int object_index, Vector3 point, Vector3 normal, Ray sight, Color object_color) {
     Color result = {0};
 
@@ -557,13 +583,19 @@ Color color_from_all_lights (int object_index, Vector3 point, Vector3 normal, Ra
         shadow_ray.dir = vec3_normalize(point_to_light);
         shadow_ray.pos = vec3_add(point, vec3_mul(shadow_ray.dir, EPSILON));
 
+        // use a shadow ray to see if we hit anything else
         float shadow_hit;
         int hit_object;
         bool did_we_hit = intersect_scene(shadow_ray, &shadow_hit, &hit_object, NULL);
+
+        // if we hit something we might have still hit the light first
         if (did_we_hit) {
             float light_hit = vec3_dot(point_to_light, point_to_light);
             if (light_hit < sq(shadow_hit)) did_we_hit = false;
         }
+
+        // for now just assume translucent objects dont cast any shadow
+        // in the future this could be improved
         if (did_we_hit) {
             if (scene[hit_object].material.refract) did_we_hit = false;
         }
@@ -583,7 +615,58 @@ Color color_from_all_lights (int object_index, Vector3 point, Vector3 normal, Ra
     return result; 
 }
 
-Color ray_color_with_except (Ray sight, int depth, int exception) {
+Color ray_color (Ray, int);
+
+// reflects ray off the normal and finds the color where it hits
+Color get_reflect_color (Ray sight, Vector3 point, Vector3 normal, int depth) {
+    Vector3 dir = vec3_normalize(sight.dir);
+
+    // dir - normal * 2 (dir . normal)
+    Vector3 reflection_dir = vec3_sub(dir, vec3_mul(normal, 2.0f * vec3_dot(dir, normal)));
+
+    Ray reflection = {0};
+    reflection.dir = vec3_normalize(reflection_dir);
+    reflection.pos = vec3_add(point, vec3_mul(reflection.dir, EPSILON));
+
+    Color mirror_color = ray_color(reflection, depth);
+
+    return mirror_color;
+}
+
+// refracts ray by the normal and finds the color
+Color get_refract_color(
+    Ray sight, Vector3 point, Vector3 normal, float refract_amount, Object object, int depth
+) {
+    if (inside_object(
+        vec3_sub(point, vec3_mul(sight.dir, EPSILON)),
+        object
+    )) {
+        // if we are leaving an object then we invert the normal because we're
+        // hitting the inside and take the reciprocal of the ratio of the indices
+        // of refraction because we're leaving the object
+        refract_amount = 1 / refract_amount;
+        normal = vec3_mul(normal, -1);
+    }
+
+    Vector3 dir = vec3_normalize(sight.dir);
+
+    float c1 = -vec3_dot(dir, normal);
+    float c2 = sqrt(1 - sq(refract_amount) * (1 - sq(c1)));
+
+    Vector3 refraction_dir = vec3_add(
+        vec3_mul(dir, refract_amount),
+        vec3_mul(normal, refract_amount * c1 - c2)
+    );
+
+    Ray refraction = {0};
+    refraction.dir = vec3_normalize(refraction_dir);
+    refraction.pos = vec3_add(point, vec3_mul(refraction.dir, EPSILON));
+
+    Color refraction_color = ray_color(refraction, depth + 1);
+    return refraction_color;
+}
+
+Color ray_color (Ray sight, int depth) {
     Color result = {0};
 
     if (depth > 20) {
@@ -596,64 +679,60 @@ Color ray_color_with_except (Ray sight, int depth, int exception) {
 
     Vector3 normal;
     
-    if (intersect_scene_with_except(sight, &hit, &hit_object, &normal, exception)) {
+    if (intersect_scene(sight, &hit, &hit_object, &normal)) {
         Vector3 hit_point = parametric_line(hit, sight);
 
         Object object = scene[hit_object];
-        // normal = object_normal(object, hit_point);
 
         float mirror = object_material(object, hit_point).mirror;
         int refract = object_material(object, hit_point).refract;
+
+        // okay this is kinda hacky, instead of keeping track of indicies of
+        // refraction, each thing has a 'refraction_amount' and it just uses that for
+        // the ratio of the indicies of refraction
         float refract_amount = object_material(object, hit_point).refract_amount;
 
         if (refract) {
-            if (inside_object(
-                vec3_sub(hit_point, vec3_mul(sight.dir, EPSILON)),
-                object
-            )) {
-                refract_amount = 1 / refract_amount;
-                normal = vec3_mul(normal, -1);
-            }
+            Color refraction_color = get_refract_color(
+                sight, hit_point, normal, refract_amount, object, depth + 1);
+            Color mirror_color = get_reflect_color(sight, hit_point, normal, depth + 1);
 
             Vector3 dir = vec3_normalize(sight.dir);
 
-            float c1 = -vec3_dot(dir, normal);
-            float c2 = sqrt(1 - sq(refract_amount) * (1 - sq(c1)));
-            Vector3 refraction_dir = vec3_add(
-                vec3_mul(dir, refract_amount),
-                vec3_mul(normal, refract_amount * c1 - c2)
+            // total internal refelction
+            float cos_t = -vec3_dot(dir, normal);
+            float para = sq(
+                (cos_t - refract_amount * cos_t)/(cos_t + refract_amount * cos_t)
             );
+            float perp = sq(
+                (refract_amount * cos_t - cos_t)/(refract_amount * cos_t + cos_t)
+            );
+            float transmission = 1.0f - (para + perp) / 2;
 
-            Ray refraction = {0};
-            refraction.dir = vec3_normalize(refraction_dir);
-            refraction.pos = vec3_add(hit_point, vec3_mul(refraction.dir, EPSILON));
+            Color final_refraction = color_lerp(mirror_color, refraction_color, transmission);
 
-            Color refraction_color = ray_color_with_except(refraction, depth + 1, -1);
+            // apply shading
             Color light_color = color_from_all_lights(
-                hit_object, hit_point, normal, sight, refraction_color); 
+                hit_object, hit_point, normal, sight, final_refraction); 
 
-            result = color_lerp(light_color, refraction_color, 0.7f);
+            result = final_refraction;
         }
         else if (mirror > 0.0f) {
-            Vector3 dir = vec3_normalize(sight.dir);
-        
-            // dir - normal * 2 (dir . normal)
-
-            Vector3 reflection_dir = vec3_sub(dir, vec3_mul(normal, 2.0f * vec3_dot(dir, normal)));
-            Ray reflection = {0};
-            reflection.dir = vec3_normalize(reflection_dir);
-            reflection.pos = vec3_add(hit_point, vec3_mul(reflection.dir, EPSILON));
-
-            Color mirror_color = ray_color_with_except(reflection, depth + 1, -1);
+            Color mirror_color = get_reflect_color(sight, hit_point, normal, depth + 1);
             Color base_color = object_material(object, hit_point).color;
+
             Color object_color = color_lerp(base_color, mirror_color, mirror);
 
+            // apply shading
             Color light_color = color_from_all_lights(
                 hit_object, hit_point, normal, sight, object_color); 
 
             result = light_color;
         } else {
+
             Color base_color = object_material(object, hit_point).color;
+
+            // apply shading
             result = color_from_all_lights(hit_object, hit_point, normal, sight, base_color); 
         }
     }
